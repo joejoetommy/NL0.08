@@ -1,0 +1,47 @@
+/* src/index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom base styles for dark theme */
+@layer base {
+  body {
+    @apply antialiased bg-black text-white;
+  }
+  
+  /* Ensure all text inputs have proper dark theme styling */
+  input, textarea {
+    @apply bg-transparent;
+  }
+}
+
+/* Custom scrollbar for dark theme */
+@layer utilities {
+  /* Hide scrollbar but keep functionality */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  /* Custom scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: rgb(24 24 27); /* zinc-900 */
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: rgb(63 63 70); /* zinc-700 */
+    border-radius: 4px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(82 82 91); /* zinc-600 */
+  }
+}

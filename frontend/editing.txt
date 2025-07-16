@@ -1,0 +1,46 @@
+Compiled with problems:
+×
+ERROR in ./src/components/profile/item/settingprofile.tsx
+Module build failed (from ./node_modules/babel-loader/lib/index.js):
+TypeError: Duplicate declaration "PROFILE_CHANGE_EVENT"
+  88 |
+  89 | // Import the event constant
+> 90 | import { PROFILE_CHANGE_EVENT } from '../../home/Profile';
+     |          ^^^^^^^^^^^^^^^^^^^^
+  91 |
+  92 | interface SettingProfileProps {
+  93 |   className?: string;
+    at File.buildCodeFrameError (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\@babel\core\lib\transformation\file\file.js:200:12)
+    at Scope.checkBlockScopedCollisions (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\@babel\traverse\lib\scope\index.js:437:27)
+    at Scope.registerBinding (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\@babel\traverse\lib\scope\index.js:538:16)
+    at Scope.registerDeclaration (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\@babel\traverse\lib\scope\index.js:498:14)
+    at Object.ImportDeclaration (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\@babel\traverse\lib\scope\index.js:210:12)
+    at NodePath._call (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\@babel\traverse\lib\path\context.js:49:20)
+    at NodePath.call (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\@babel\traverse\lib\path\context.js:39:18)
+    at NodePath.visit (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\@babel\traverse\lib\path\context.js:88:31)
+    at TraversalContext.visitQueue (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\@babel\traverse\lib\context.js:90:16)
+    at TraversalContext.visitMultiple (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\@babel\traverse\lib\context.js:62:17)
+    at TraversalContext.visit (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\@babel\traverse\lib\context.js:111:19)
+    at traverseNode (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\@babel\traverse\lib\traverse-node.js:131:17)
+    at traverse (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\@babel\traverse\lib\index.js:53:34)
+    at NodePath.traverse (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\@babel\traverse\lib\path\index.js:121:24)
+    at Scope.crawl (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\@babel\traverse\lib\scope\index.js:710:10)
+    at Scope.init (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\@babel\traverse\lib\scope\index.js:673:12)
+    at NodePath.setScope (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\@babel\traverse\lib\path\context.js:126:53)
+    at NodePath.setContext (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\@babel\traverse\lib\path\context.js:138:12)
+    at new File (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\@babel\core\lib\transformation\file\file.js:88:8)
+    at normalizeFile (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\@babel\core\lib\transformation\normalize-file.js:98:10)
+    at normalizeFile.next (<anonymous>)
+    at run (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\@babel\core\lib\transformation\index.js:22:50)
+    at run.next (<anonymous>)
+    at transform (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\@babel\core\lib\transform.js:22:33)
+    at transform.next (<anonymous>)
+    at step (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\gensync\index.js:261:32)
+    at C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\gensync\index.js:273:13
+    at async.call.result.err.err (C:\Users\JoeJoe\Desktop\Project-Code\NL\NL0.06\NL\node_modules\gensync\index.js:223:11)
+ERROR
+[eslint] 
+src\components\profile\item\settingprofile.tsx
+  Line 90:1:  Import in body of module; reorder to top  import/first
+
+Search for the keywords to learn more about each error.

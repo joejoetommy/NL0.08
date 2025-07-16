@@ -1,0 +1,109 @@
+{  1933d50562e6ed413bb599485b1e86ab4297d3c3b1f257841556c43b984970db3b460c86ff336519097608a77028053c712245f0b1d6e3496d90a0
+    "txid": "ed3a2bef6981e65639c23740b1c1764d8efdb47d93a4a12f61bcbef32b7da9b3",
+    "hash": "ed3a2bef6981e65639c23740b1c1764d8efdb47d93a4a12f61bcbef32b7da9b3",
+    "size": 297,
+    "version": 1,
+    "locktime": 0,
+    "vin": [
+        {
+            "n": 0,
+            "txid": "589f524ae8bec8bf0d8202437bf9e77a84f1603c5e62cf8d48668d6283641cc4",
+            "vout": 2,
+            "scriptSig": {
+                "asm": "3045022100f7cd3f1d5308b2ddd1fc2582213f0b9c52ac1b8cce59edf68cdf355d3ffa86d60220792ef2bafc4d0163cd4c6e61fdfa1fa447bb00263142e2b8c1ed222ffa8d504f41 03486fc70e31b45fb24094e714ef2f2fed9d86cf9f2158413be380280fdd3f2416",
+                "hex": "483045022100f7cd3f1d5308b2ddd1fc2582213f0b9c52ac1b8cce59edf68cdf355d3ffa86d60220792ef2bafc4d0163cd4c6e61fdfa1fa447bb00263142e2b8c1ed222ffa8d504f412103486fc70e31b45fb24094e714ef2f2fed9d86cf9f2158413be380280fdd3f2416",
+                "isTruncated": false
+            },
+            "sequence": 4294967295,
+            "voutDetails": {
+                "value": 0.000959,
+                "n": 2,
+                "scriptPubKey": {
+                    "asm": "OP_DUP OP_HASH160 96109e6f50f89ba8dca4f79b58e8428fa63021e3 OP_EQUALVERIFY OP_CHECKSIG",
+                    "hex": "76a91496109e6f50f89ba8dca4f79b58e8428fa63021e388ac",
+                    "reqSigs": 1,
+                    "type": "pubkeyhash",
+                    "addresses": [
+                        "muCRZXdunSqaKv5REC37Ahf6ZUAK2yqKes"
+                    ],
+                    "isTruncated": false
+                },
+                "scripthash": "4906884ae1623dd8a9570af55c68f7f78828329980e9739f23c2d48be8cdb273"
+            }
+        }
+    ],
+    "vout": [
+        {
+            "value": 0,
+            "n": 0,
+            "scriptPubKey": {
+ "asm": "0 OP_RETURN 1933d50562e6ed413bb599485b1e86ab4297d3c3b1f257841556c43b984970db3b460c86ff336519097608a77028053c712245f0b1d6e3496d90a0",
+                "hex": "006a3b1933d50562e6ed413bb599485b1e86ab4297d3c3b1f257841556c43b984970db3b460c86ff336519097608a77028053c712245f0b1d6e3496d90a0",
+                "type": "nulldata",
+                "opReturn": {
+                    "type": "OP_RETURN"
+                },
+                "isTruncated": false
+            },
+            "scripthash": "c5196c501d2fa0dc968c18dfb86a76f69f99e5c96c0bb3df799fcd5d7f164d2b"
+        },
+        {
+            "value": 0.00001,
+            "n": 1,
+            "scriptPubKey": {
+                "asm": "OP_DUP OP_HASH160 93ce48570b55c42c2af816aeaba06cfee1224fae OP_EQUALVERIFY OP_CHECKSIG",
+                "hex": "76a91493ce48570b55c42c2af816aeaba06cfee1224fae88ac",
+                "reqSigs": 1,
+                "type": "pubkeyhash",
+                "addresses": [
+                    "mtzUk1zTJzTdyC8Pz6PPPyCHTEL5RLVyDJ"
+                ],
+                "isTruncated": false
+            },
+            "scripthash": "83722de67bb3466ab6eea8bbf3a969ea3b533e0df56bb1fbe482da748bca45a8"
+        },
+        {
+            "value": 0.00094899,
+            "n": 2,
+            "scriptPubKey": {
+                "asm": "OP_DUP OP_HASH160 96109e6f50f89ba8dca4f79b58e8428fa63021e3 OP_EQUALVERIFY OP_CHECKSIG",
+                "hex": "76a91496109e6f50f89ba8dca4f79b58e8428fa63021e388ac",
+                "reqSigs": 1,
+                "type": "pubkeyhash",
+                "addresses": [
+                    "muCRZXdunSqaKv5REC37Ahf6ZUAK2yqKes"
+                ],
+                "isTruncated": false
+            },
+            "scripthash": "4906884ae1623dd8a9570af55c68f7f78828329980e9739f23c2d48be8cdb273"
+        }
+    ],
+    "vincount": 1,
+    "voutcount": 3,
+    "vinvalue": 0.000959,
+    "voutvalue": 0.0009589900000000001,
+    "ancestors": [],
+    "descendants": []
+}
+
+// 3e6356abe79026b9e9c2bf5b39a3c32f2c81e712d68c578ad4e760e148c7dfef0635dfac4a47a3061037ab367938dab94083aa17849f6d8d3698
+
+
+
+// alice test 
+// decrypt message  123456789    
+// encrypted message 13005fa65ea94b5d6b61f573987228dc2c467f58bf4e058e59f2ec28cae63327b22df225ee39bbeb6ffb1de81a1360c02895921afdcca6c8bd 
+// ECDH  027eda5bc0d571f9439aea0f2326c4b70e0a1073675fc120ef64d5ee7b20396c2a
+
+// "asm": "0 OP_RETURN 1933697feb378adf1ab80dd8b856a32aff9b3dbc8cad610843d03c78d888da7be7972806ee676b145a307cd1a308ff61d49fba8b990ffda0957556",
+
+
+
+
+
+
+
+
+
+
+// Type-42 Advanced Encryption Class
