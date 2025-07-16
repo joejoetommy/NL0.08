@@ -2,8 +2,21 @@
 // my first profile token push ff7c802657c3b421cbe8452af6307b8efdec6d009a18f24cf89baced5d96f87d
 // my 2nd 99f25888161d9e7b67ba22c199916b6fa241358ab2cb84f266a01e1b35be30f9
 // my 3rd 
-//xpri 6811543cdaae96cc602c2ed5efe517bf86cecdb0abbe678eb957b86bf8d3ff13
+//xpri 6811543cdaae96cc602c2ed5efe517bf86cecdb0abbe678eb957b86bf8d3ff13   muCRZXdunSqaKv5REC37Ahf6ZUAK2yqKes
 // testnet_65360009fe0348a739b9227d9e770979
+
+//////////////////////////////////////////
+// 1de096339a813a63f3bb829ddbcd307086e426c498811986700c275f35c1ac04
+
+// mzoFnR9fpyLh3Sabvx3oiXDFtPspXKusms
+
+
+// 1st 1SAT
+// 6455ef4c2f45230cf29a8c09b920ca81e89a0b92ff54860b64d3c057760c4ac4 
+// {
+//   "type": "jesus is the only way",
+//   "message": "remember to go to him, all who are heavy laden and you will find rest"
+// }
 
 
 
