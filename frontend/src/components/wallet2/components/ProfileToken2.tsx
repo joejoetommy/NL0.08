@@ -1,3 +1,7 @@
+// This is the original code for the ProfileToken component
+// It is used to create and manage profile tokens in the wallet application
+// Successfully pushed to the network  With Text data
+
 import React, { useState } from 'react';
 import { useWalletStore } from '../store/WalletStore';
 import { UTXOManager } from '../utils/blockchain';
@@ -81,73 +85,83 @@ export const ProfileToken: React.FC = () => {
     return script;
   };
 
-  // Broadcast transaction through backend proxy with better error handling
+  // Broadcast transaction - try direct first, then proxy
   const broadcastTransaction = async (txHex: string): Promise<{ success: boolean; txid?: string; error?: string }> => {
-    console.log('Starting broadcast to backend proxy at:', BROADCAST_PROXY_URL);
+    console.log('Starting broadcast...');
     
+    // Method 1: Try direct broadcast to WhatsOnChain (might work)
     try {
-      // First verify the backend is accessible
-      const healthCheck = await fetch(`${BROADCAST_PROXY_URL}/health`).catch(() => null);
-      if (!healthCheck || !healthCheck.ok) {
-        console.error('Backend proxy is not accessible at', BROADCAST_PROXY_URL);
-        throw new Error('Backend proxy server is not running or not accessible');
-      }
-
-      // Now broadcast the transaction
-      console.log('Broadcasting transaction of size:', txHex.length / 2, 'bytes');
+      console.log('Attempting direct broadcast to WhatsOnChain...');
+      const url = `https://api.whatsonchain.com/v1/bsv/${network === 'testnet' ? 'test' : 'main'}/tx/raw`;
       
-      const response = await fetch(`${BROADCAST_PROXY_URL}/api/broadcast`, {
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          txHex,
-          network: network === 'testnet' ? 'test' : 'main'
-        })
+        body: JSON.stringify({ txhex: txHex })
       });
 
-      console.log('Broadcast response status:', response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Broadcast failed with status:', response.status, 'Error:', errorText);
-        throw new Error(`Broadcast failed: ${errorText}`);
+      if (response.ok) {
+        const txid = (await response.text()).trim();
+        if (txid.length === 64) {
+          console.log('✅ Direct broadcast successful!');
+          return { success: true, txid };
+        }
       }
-
-      const result = await response.json();
-      console.log('Broadcast result:', result);
-
-      if (result.success && result.txid) {
-        return {
-          success: true,
-          txid: result.txid
-        };
-      } else {
-        throw new Error(result.error || result.message || 'Unknown broadcast error');
-      }
-
     } catch (error) {
-      console.error('Broadcast error:', error);
-      
-      // Log the transaction hex for manual broadcast
-      console.log('\n=== TRANSACTION HEX FOR MANUAL BROADCAST ===');
-      console.log(txHex);
-      console.log('===========================================\n');
-      
-      // Try to copy to clipboard
-      try {
-        await navigator.clipboard.writeText(txHex);
-        console.log('✓ Transaction hex copied to clipboard!');
-      } catch (e) {
-        console.log('Could not copy to clipboard');
-      }
-      
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred during broadcast'
-      };
+      console.log('Direct broadcast failed (CORS), trying proxy...');
     }
+
+    // Method 2: Try backend proxy
+    try {
+      const healthCheck = await fetch(`${BROADCAST_PROXY_URL}/health`).catch(() => null);
+      if (healthCheck && healthCheck.ok) {
+        console.log('Backend proxy available, broadcasting...');
+        
+        const response = await fetch(`${BROADCAST_PROXY_URL}/api/broadcast`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            txHex,
+            network: network === 'testnet' ? 'test' : 'main'
+          })
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success) {
+            return { success: true, txid: result.txid };
+          }
+        }
+      }
+    } catch (error) {
+      console.log('Proxy broadcast failed');
+    }
+
+    // Method 3: Manual broadcast
+    console.log('\n=== MANUAL BROADCAST REQUIRED ===');
+    console.log('Copy this transaction hex:');
+    console.log(txHex);
+    console.log('=================================\n');
+    
+    // Copy to clipboard
+    try {
+      await navigator.clipboard.writeText(txHex);
+      console.log('✓ Transaction hex copied to clipboard!');
+      
+      // Open broadcast page in new tab
+      window.open(`https://${network === 'testnet' ? 'test.' : ''}whatsonchain.com/broadcast`, '_blank');
+    } catch (e) {
+      console.log('Could not copy to clipboard');
+    }
+    
+    return {
+      success: false,
+      error: `Automatic broadcast failed. Transaction hex copied to clipboard. A new tab has been opened for manual broadcast.`
+    };
   };
 
   // Create simple ordinal
@@ -456,3 +470,578 @@ export const ProfileToken: React.FC = () => {
     </div>
   );
 };
+
+
+
+
+
+
+
+
+
+
+// This is developing code further with image inscriptions and profile tokens
+
+// import React, { useState } from 'react';
+// import { useWalletStore } from '../store/WalletStore';
+// import { UTXOManager } from '../utils/blockchain';
+// import { PrivateKey, Transaction, P2PKH, Script, Utils } from '@bsv/sdk';
+// import { BroadcastService } from '../services/BroadcastService';
+
+// // Test data templates
+// const TEST_DATA = {
+//   text: { type: 'test', message: 'Hello BSV!' },
+//   profile: { 
+//     type: 'profile',
+//     username: 'testuser',
+//     title: 'BSV Developer',
+//     bio: 'Building on Bitcoin SV'
+//   },
+//   image: {
+//     type: 'image',
+//     name: 'test-image.png',
+//     description: 'Test image inscription'
+//   }
+// };
+
+// export const ProfileToken: React.FC = () => {
+//   const [inscriptionType, setInscriptionType] = useState<'text' | 'image' | 'profile'>('text');
+//   const [textData, setTextData] = useState('');
+//   const [imageFile, setImageFile] = useState<File | null>(null);
+//   const [imagePreview, setImagePreview] = useState<string>('');
+//   const [profileData, setProfileData] = useState({
+//     username: '',
+//     title: '',
+//     bio: '',
+//     avatar: ''
+//   });
+//   const [loading, setLoading] = useState(false);
+//   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info' | null; message: string }>({ 
+//     type: null, 
+//     message: '' 
+//   });
+//   const [lastTxid, setLastTxid] = useState('');
+//   const [showAdvanced, setShowAdvanced] = useState(false);
+
+//   const { keyData, network, balance, whatsOnChainApiKey } = useWalletStore();
+
+//   // Backend proxy URL
+//   const BROADCAST_PROXY_URL = 'http://localhost:3001';
+
+//   // Handle image selection
+//   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+//     const file = e.target.files?.[0];
+//     if (!file) return;
+
+//     // Validate file size (limit to 100KB for now)
+//     if (file.size > 100 * 1024) {
+//       setStatus({ 
+//         type: 'error', 
+//         message: 'Image too large. Please select an image under 100KB.' 
+//       });
+//       return;
+//     }
+
+//     setImageFile(file);
+
+//     // Create preview
+//     const reader = new FileReader();
+//     reader.onload = (e) => {
+//       setImagePreview(e.target?.result as string);
+//     };
+//     reader.readAsDataURL(file);
+//   };
+
+//   // Convert image to base64
+//   const imageToBase64 = (file: File): Promise<string> => {
+//     return new Promise((resolve, reject) => {
+//       const reader = new FileReader();
+//       reader.onload = () => {
+//         const base64 = reader.result as string;
+//         // Remove data URL prefix to get pure base64
+//         const base64Data = base64.split(',')[1];
+//         resolve(base64Data);
+//       };
+//       reader.onerror = reject;
+//       reader.readAsDataURL(file);
+//     });
+//   };
+
+//   // Create the inscription script
+//   const createInscriptionScript = (pubKeyHash: number[], contentType: string, data: Uint8Array): Script => {
+//     const script = new Script();
+    
+//     // P2PKH locking script first
+//     script.writeBin([0x76, 0xa9, 0x14]); // OP_DUP OP_HASH160 PUSH(20)
+//     script.writeBin(pubKeyHash);
+//     script.writeBin([0x88, 0xac]); // OP_EQUALVERIFY OP_CHECKSIG
+    
+//     // Inscription envelope
+//     script.writeBin([0x00, 0x63]); // OP_FALSE OP_IF
+    
+//     // "ord" marker
+//     script.writeBin([0x03]); // PUSH(3)
+//     script.writeBin([0x6f, 0x72, 0x64]); // "ord"
+    
+//     script.writeBin([0x51]); // OP_1
+    
+//     // Content type
+//     const ctBytes = Utils.toArray(contentType, 'utf8');
+//     if (ctBytes.length <= 75) {
+//       script.writeBin([ctBytes.length]);
+//       script.writeBin(ctBytes);
+//     } else {
+//       script.writeBin([0x4c, ctBytes.length]);
+//       script.writeBin(ctBytes);
+//     }
+    
+//     script.writeBin([0x00]); // OP_0
+    
+//     // Data push
+//     const dataArray = Array.from(data);
+//     if (dataArray.length <= 75) {
+//       script.writeBin([dataArray.length]);
+//       script.writeBin(dataArray);
+//     } else if (dataArray.length <= 255) {
+//       script.writeBin([0x4c]); // OP_PUSHDATA1
+//       script.writeBin([dataArray.length]);
+//       script.writeBin(dataArray);
+//     } else if (dataArray.length <= 65535) {
+//       script.writeBin([0x4d]); // OP_PUSHDATA2
+//       script.writeBin([dataArray.length & 0xff]);
+//       script.writeBin([dataArray.length >> 8]);
+//       script.writeBin(dataArray);
+//     } else {
+//       // OP_PUSHDATA4 for very large data
+//       script.writeBin([0x4e]);
+//       script.writeBin([
+//         dataArray.length & 0xff,
+//         (dataArray.length >> 8) & 0xff,
+//         (dataArray.length >> 16) & 0xff,
+//         (dataArray.length >> 24) & 0xff
+//       ]);
+//       script.writeBin(dataArray);
+//     }
+    
+//     script.writeBin([0x68]); // OP_ENDIF
+    
+//     return script;
+//   };
+
+//   // Broadcast transaction with multiple fallback methods
+//   const broadcastTransaction = async (txHex: string): Promise<{ success: boolean; txid?: string; error?: string }> => {
+//     const broadcastService = new BroadcastService(network);
+    
+//     // First try the broadcast service with multiple methods
+//     const result = await broadcastService.broadcast(txHex);
+    
+//     if (result.success) {
+//       return result;
+//     }
+    
+//     // If all automatic methods fail, copy to clipboard for manual broadcast
+//     console.log('\n=== MANUAL BROADCAST REQUIRED ===');
+//     console.log('Transaction hex:');
+//     console.log(txHex);
+//     console.log('=================================\n');
+    
+//     try {
+//       await navigator.clipboard.writeText(txHex);
+//       console.log('✓ Transaction hex copied to clipboard!');
+//     } catch (e) {
+//       console.log('Could not copy to clipboard');
+//     }
+    
+//     return {
+//       success: false,
+//       error: 'Automatic broadcast failed. Transaction copied to clipboard. Click the link below to broadcast manually.'
+//     };
+//   };
+
+//   // Create ordinal inscription
+//   const createOrdinal = async () => {
+//     if (!keyData.privateKey) {
+//       setStatus({ type: 'error', message: 'Please connect your wallet first' });
+//       return;
+//     }
+
+//     setLoading(true);
+//     setStatus({ type: 'info', message: 'Preparing inscription...' });
+
+//     try {
+//       // Prepare inscription data based on type
+//       let contentType: string;
+//       let inscriptionData: Uint8Array;
+
+//       if (inscriptionType === 'text') {
+//         contentType = 'text/plain;charset=utf-8';
+//         const text = textData || 'Hello, 1Sat Ordinals!';
+//         inscriptionData = Utils.toArray(text, 'utf8');
+//       } 
+//       else if (inscriptionType === 'image' && imageFile) {
+//         // Determine content type from file
+//         contentType = imageFile.type || 'image/png';
+        
+//         // Convert image to base64 and then to bytes
+//         const base64Data = await imageToBase64(imageFile);
+//         inscriptionData = Utils.toArray(base64Data, 'base64');
+        
+//         console.log(`Image inscription: ${imageFile.name}, size: ${inscriptionData.length} bytes`);
+//       }
+//       else if (inscriptionType === 'profile') {
+//         contentType = 'application/json';
+//         const profile = {
+//           p: 'profile',
+//           username: profileData.username || 'Anonymous',
+//           title: profileData.title || 'BSV User',
+//           bio: profileData.bio || 'On-chain profile',
+//           avatar: profileData.avatar,
+//           timestamp: Date.now()
+//         };
+//         inscriptionData = Utils.toArray(JSON.stringify(profile), 'utf8');
+//       }
+//       else {
+//         throw new Error('Invalid inscription type or missing data');
+//       }
+
+//       console.log(`Creating ${inscriptionType} inscription, size: ${inscriptionData.length} bytes`);
+
+//       // Get UTXOs
+//       const utxoManager = new UTXOManager(keyData.address, network, whatsOnChainApiKey);
+//       const utxos = await utxoManager.fetchUTXOs();
+      
+//       if (utxos.length === 0) {
+//         throw new Error('No UTXOs available');
+//       }
+
+//       // Calculate fee based on inscription size
+//       const baseFee = 200;
+//       const dataFee = Math.ceil(inscriptionData.length * 0.5);
+//       const totalFee = baseFee + dataFee;
+      
+//       const { selected, total } = utxoManager.selectUTXOs(1 + totalFee);
+      
+//       if (selected.length === 0) {
+//         throw new Error(`Insufficient funds. Need ${1 + totalFee} satoshis, have ${total}`);
+//       }
+
+//       console.log(`Selected ${selected.length} UTXOs, total: ${total} sats, fee: ${totalFee} sats`);
+
+//       // Create transaction
+//       const privateKey = PrivateKey.fromWif(keyData.privateKeyWif) || PrivateKey.fromHex(keyData.privateKeyHex);
+//       const publicKey = privateKey.toPublicKey();
+//       const address = publicKey.toAddress();
+//       const pubKeyHash = publicKey.toHash();
+
+//       const inscriptionScript = createInscriptionScript(pubKeyHash, contentType, inscriptionData);
+
+//       const tx = new Transaction();
+
+//       // Add inputs
+//       let totalInput = 0;
+//       for (const utxo of selected) {
+//         const txid = utxo.tx_hash || utxo.txid;
+//         const vout = utxo.tx_pos !== undefined ? utxo.tx_pos : 0;
+//         const satoshis = utxo.value || utxo.satoshis || 0;
+        
+//         totalInput += satoshis;
+
+//         const sourceTransaction = {
+//           id: txid,
+//           outputs: [{
+//             satoshis: satoshis,
+//             lockingScript: new P2PKH().lock(address)
+//           }]
+//         };
+
+//         tx.addInput({
+//           sourceTXID: txid,
+//           sourceOutputIndex: vout,
+//           unlockingScriptTemplate: new P2PKH().unlock(privateKey),
+//           sourceTransaction: sourceTransaction
+//         });
+//       }
+
+//       // Output 1: The ordinal (1 satoshi)
+//       tx.addOutput({
+//         lockingScript: inscriptionScript,
+//         satoshis: 1
+//       });
+
+//       // Output 2: Change
+//       const change = totalInput - 1 - totalFee;
+//       if (change > 0) {
+//         tx.addOutput({
+//           lockingScript: new P2PKH().lock(address),
+//           satoshis: change
+//         });
+//       }
+
+//       // Sign transaction
+//       await tx.sign();
+
+//       const txHex = tx.toHex();
+//       const txSize = txHex.length / 2;
+
+//       console.log('Transaction created:');
+//       console.log(`- Size: ${txSize} bytes`);
+//       console.log(`- Fee: ${totalFee} sats (${(totalFee/txSize).toFixed(2)} sats/byte)`);
+
+//       // Broadcast
+//       setStatus({ type: 'info', message: 'Broadcasting transaction...' });
+//       const result = await broadcastTransaction(txHex);
+
+//       if (result.success) {
+//         setLastTxid(result.txid!);
+//         setStatus({ 
+//           type: 'success', 
+//           message: `Ordinal created! TXID: ${result.txid}` 
+//         });
+        
+//         console.log(`Inscription ID: ${result.txid}_0`);
+        
+//         // Clear form
+//         setTextData('');
+//         setImageFile(null);
+//         setImagePreview('');
+//         setProfileData({ username: '', title: '', bio: '', avatar: '' });
+//       } else {
+//         throw new Error(result.error);
+//       }
+
+//     } catch (error) {
+//       console.error('Error creating ordinal:', error);
+//       setStatus({ 
+//         type: 'error', 
+//         message: error instanceof Error ? error.message : 'Failed to create ordinal' 
+//       });
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   return (
+//     <div>
+//       <div className="mb-4 p-4 bg-gradient-to-r from-purple-900 to-pink-900 bg-opacity-20 rounded-lg border border-purple-700">
+//         <h2 className="text-xl font-semibold text-white">1Sat Ordinals Creator</h2>
+//         <p className="text-sm text-gray-300 mt-1">Create text, image, or profile inscriptions on BSV</p>
+//       </div>
+
+//       {/* Status Message */}
+//       {status.type && (
+//         <div className={`mb-4 p-3 rounded-lg ${
+//           status.type === 'error' ? 'bg-red-900 bg-opacity-50 text-red-300' :
+//           status.type === 'success' ? 'bg-green-900 bg-opacity-50 text-green-300' :
+//           'bg-blue-900 bg-opacity-50 text-blue-300'
+//         }`}>
+//           {status.message}
+//           {lastTxid && status.type === 'success' && (
+//             <div className="mt-2 space-y-1">
+//               <a 
+//                 href={`https://${network === 'testnet' ? 'test.' : ''}whatsonchain.com/tx/${lastTxid}`}
+//                 target="_blank"
+//                 rel="noopener noreferrer"
+//                 className="text-blue-400 hover:text-blue-300 underline text-sm block"
+//               >
+//                 View Transaction →
+//               </a>
+//               <a 
+//                 href={`https://1satordinals.com/inscription/${lastTxid}_0`}
+//                 target="_blank"
+//                 rel="noopener noreferrer"
+//                 className="text-purple-400 hover:text-purple-300 underline text-sm block"
+//               >
+//                 View on 1SatOrdinals →
+//               </a>
+//             </div>
+//           )}
+//           {status.type === 'error' && status.message.includes('clipboard') && (
+//             <div className="mt-3 p-2 bg-gray-800 rounded">
+//               <p className="text-xs text-gray-300 mb-2">Broadcast manually:</p>
+//               <a 
+//                 href={`https://${network === 'testnet' ? 'test.' : ''}whatsonchain.com/broadcast`}
+//                 target="_blank"
+//                 rel="noopener noreferrer"
+//                 className="inline-flex items-center px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
+//               >
+//                 Open WhatsOnChain Broadcast
+//                 <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+//                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+//                 </svg>
+//               </a>
+//             </div>
+//           )}
+//         </div>
+//       )}
+
+//       <div className="p-4 bg-gray-700 rounded-lg border border-gray-600">
+//         <div className="space-y-4">
+//           {/* Inscription Type Selection */}
+//           <div>
+//             <label className="block text-sm font-medium text-gray-300 mb-2">Inscription Type</label>
+//             <div className="flex gap-2">
+//               <button
+//                 onClick={() => setInscriptionType('text')}
+//                 className={`px-4 py-2 rounded-lg font-medium transition-all ${
+//                   inscriptionType === 'text'
+//                     ? 'bg-purple-500 text-white'
+//                     : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+//                 }`}
+//               >
+//                 📝 Text
+//               </button>
+//               <button
+//                 onClick={() => setInscriptionType('image')}
+//                 className={`px-4 py-2 rounded-lg font-medium transition-all ${
+//                   inscriptionType === 'image'
+//                     ? 'bg-purple-500 text-white'
+//                     : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+//                 }`}
+//               >
+//                 🖼️ Image
+//               </button>
+//               <button
+//                 onClick={() => setInscriptionType('profile')}
+//                 className={`px-4 py-2 rounded-lg font-medium transition-all ${
+//                   inscriptionType === 'profile'
+//                     ? 'bg-purple-500 text-white'
+//                     : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+//                 }`}
+//               >
+//                 👤 Profile
+//               </button>
+//             </div>
+//           </div>
+
+//           {/* Text Input */}
+//           {inscriptionType === 'text' && (
+//             <div>
+//               <label className="block text-sm font-medium text-gray-300 mb-2">Text Message</label>
+//               <textarea
+//                 value={textData}
+//                 onChange={(e) => setTextData(e.target.value)}
+//                 placeholder="Enter your message..."
+//                 className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white"
+//                 rows={4}
+//               />
+//               <p className="text-xs text-gray-400 mt-1">
+//                 {textData.length} characters ({new TextEncoder().encode(textData).length} bytes)
+//               </p>
+//             </div>
+//           )}
+
+//           {/* Image Upload */}
+//           {inscriptionType === 'image' && (
+//             <div>
+//               <label className="block text-sm font-medium text-gray-300 mb-2">Select Image</label>
+//               <input
+//                 type="file"
+//                 accept="image/*"
+//                 onChange={handleImageSelect}
+//                 className="hidden"
+//                 id="image-upload"
+//               />
+//               <label
+//                 htmlFor="image-upload"
+//                 className="block w-full p-8 bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-purple-500 transition-colors"
+//               >
+//                 {imagePreview ? (
+//                   <div className="text-center">
+//                     <img
+//                       src={imagePreview}
+//                       alt="Preview"
+//                       className="max-h-48 mx-auto rounded"
+//                     />
+//                     <p className="text-sm text-gray-400 mt-2">
+//                       {imageFile?.name} ({Math.round((imageFile?.size || 0) / 1024)}KB)
+//                     </p>
+//                   </div>
+//                 ) : (
+//                   <div className="text-center">
+//                     <svg className="w-12 h-12 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+//                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+//                     </svg>
+//                     <p className="text-gray-400">Click to upload image</p>
+//                     <p className="text-xs text-gray-500 mt-1">Max 100KB (for now)</p>
+//                   </div>
+//                 )}
+//               </label>
+//             </div>
+//           )}
+
+//           {/* Profile Form */}
+//           {inscriptionType === 'profile' && (
+//             <div className="space-y-3">
+//               <div>
+//                 <label className="block text-sm font-medium text-gray-300 mb-1">Username</label>
+//                 <input
+//                   type="text"
+//                   value={profileData.username}
+//                   onChange={(e) => setProfileData({ ...profileData, username: e.target.value })}
+//                   placeholder="satoshi"
+//                   className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white"
+//                 />
+//               </div>
+//               <div>
+//                 <label className="block text-sm font-medium text-gray-300 mb-1">Title</label>
+//                 <input
+//                   type="text"
+//                   value={profileData.title}
+//                   onChange={(e) => setProfileData({ ...profileData, title: e.target.value })}
+//                   placeholder="Bitcoin Creator"
+//                   className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white"
+//                 />
+//               </div>
+//               <div>
+//                 <label className="block text-sm font-medium text-gray-300 mb-1">Bio</label>
+//                 <textarea
+//                   value={profileData.bio}
+//                   onChange={(e) => setProfileData({ ...profileData, bio: e.target.value })}
+//                   placeholder="Building peer-to-peer electronic cash..."
+//                   className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white"
+//                   rows={3}
+//                 />
+//               </div>
+//             </div>
+//           )}
+
+//           {/* Wallet Info */}
+//           <div className="p-3 bg-gray-800 rounded-lg">
+//             <div className="flex justify-between items-center text-sm">
+//               <span className="text-gray-400">Address:</span>
+//               <span className="text-gray-300 font-mono text-xs">
+//                 {keyData.address ? `${keyData.address.substring(0, 12)}...${keyData.address.substring(keyData.address.length - 8)}` : 'Not connected'}
+//               </span>
+//             </div>
+//             <div className="flex justify-between items-center text-sm mt-2">
+//               <span className="text-gray-400">Balance:</span>
+//               <span className="text-gray-300">{balance.confirmed.toLocaleString()} sats</span>
+//             </div>
+//           </div>
+
+//           {/* Create Button */}
+//           <button
+//             onClick={createOrdinal}
+//             disabled={loading || !keyData.privateKey || balance.confirmed < 500 || 
+//               (inscriptionType === 'image' && !imageFile)}
+//             className="w-full py-3 px-6 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+//           >
+//             {loading ? 'Creating Inscription...' : `Create ${inscriptionType.charAt(0).toUpperCase() + inscriptionType.slice(1)} Ordinal`}
+//           </button>
+
+//           {/* Info Box */}
+//           <div className="p-3 bg-blue-900 bg-opacity-30 rounded-lg border border-blue-700">
+//             <h4 className="text-sm font-medium text-blue-300 mb-1">💡 Tips:</h4>
+//             <ul className="text-xs text-gray-300 space-y-1">
+//               <li>• Text inscriptions are cheapest (~200-300 sats total)</li>
+//               <li>• Images cost more based on file size (keep under 100KB)</li>
+//               <li>• Profile inscriptions create on-chain identity</li>
+//               <li>• Each inscription gets a unique ID: {`<txid>_0`}</li>
+//               <li>• Inscriptions are permanent and tradeable</li>
+//             </ul>
+//           </div>
+//         </div>
+//       </div>
+//     </div>
+//   );
+// };
