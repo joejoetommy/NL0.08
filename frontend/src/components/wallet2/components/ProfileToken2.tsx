@@ -497,9 +497,10 @@
 
 
 
-//// Further development of the ProfileToken component V17
-import React, { useState, useEffect } from 'react';
+//// Further development of the ProfileToken component V44 all working up to 5mb "BSV Ordinal Wallet Development"
+// V45 introduction of Profile image + text ; then profile image + bakground image + text  
 
+import React, { useState, useEffect } from 'react';
 import { useWalletStore } from '../store/WalletStore';
 import { UTXOManager } from '../utils/blockchain';
 import { PrivateKey, Transaction, P2PKH, Script, Utils } from '@bsv/sdk';
@@ -522,7 +523,7 @@ const TEST_DATA = {
 };
 
 export const ProfileToken: React.FC = () => {
-  const [inscriptionType, setInscriptionType] = useState<'text' | 'image' | 'profile'>('text');
+  const [inscriptionType, setInscriptionType] = useState<'text' | 'image' | 'profile' | 'profile2'>('text');
   const [textData, setTextData] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
@@ -532,6 +533,10 @@ export const ProfileToken: React.FC = () => {
     bio: '',
     avatar: ''
   });
+  const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
+  const [profileImagePreview, setProfileImagePreview] = useState<string>('');
+  const [backgroundImageFile, setBackgroundImageFile] = useState<File | null>(null);
+  const [backgroundImagePreview, setBackgroundImagePreview] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [transactionQueue, setTransactionQueue] = useState(false);
   const [lastTransactionTime, setLastTransactionTime] = useState(0);
@@ -642,17 +647,17 @@ export const ProfileToken: React.FC = () => {
     fetchCurrentFeeRate();
   }, [network]);
 
-  // Handle image selection with increased limit
+  // Handle image selection with 5MB limit
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file size (limit to 9.9MB)
-    const maxSize = 9.9 * 1024 * 1024; // 9.9MB in bytes
+    // Validate file size (limit to 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB in bytes
     if (file.size > maxSize) {
       setStatus({ 
         type: 'error', 
-        message: `Image too large. Maximum size is 9.9MB, your file is ${(file.size / (1024 * 1024)).toFixed(2)}MB.` 
+        message: `Image too large. Maximum size is 5MB, your file is ${(file.size / (1024 * 1024)).toFixed(2)}MB.` 
       });
       return;
     }
@@ -674,6 +679,57 @@ export const ProfileToken: React.FC = () => {
       setImagePreview(e.target?.result as string);
     };
     reader.readAsDataURL(file);
+  };
+
+  // Handle profile image selection
+  const handleProfileImageSelect = async (e: React.ChangeEvent<HTMLInputElement>, isBackground: boolean = false) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check combined size for profile2
+    let totalSize = file.size;
+    if (inscriptionType === 'profile2') {
+      if (isBackground && profileImageFile) {
+        totalSize += profileImageFile.size;
+      } else if (!isBackground && backgroundImageFile) {
+        totalSize += backgroundImageFile.size;
+      }
+    }
+
+    // Validate combined size (limit to 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+    if (totalSize > maxSize) {
+      setStatus({ 
+        type: 'error', 
+        message: `Combined images too large. Maximum total size is 5MB, current total is ${(totalSize / (1024 * 1024)).toFixed(2)}MB.` 
+      });
+      return;
+    }
+
+    if (isBackground) {
+      setBackgroundImageFile(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setBackgroundImagePreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setProfileImageFile(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setProfileImagePreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // Calculate estimated fee
+    const base64Size = Math.ceil(totalSize * 1.37);
+    const { estimatedSize, fee } = calculateTransactionFee(1, 2, base64Size);
+    
+    setStatus({ 
+      type: 'info', 
+      message: `Total size: ${(totalSize / 1024).toFixed(0)}KB. Estimated fee: ${fee} sats` 
+    });
   };
 
   // Convert image to base64
@@ -824,15 +880,45 @@ export const ProfileToken: React.FC = () => {
       }
       else if (inscriptionType === 'profile') {
         contentType = 'application/json';
-        const profile = {
+        const profileDataToSave: any = {
           p: 'profile',
           username: profileData.username || 'Anonymous',
           title: profileData.title || 'BSV User',
           bio: profileData.bio || 'On-chain profile',
-          avatar: profileData.avatar,
           timestamp: Date.now()
         };
-        inscriptionData = Utils.toArray(JSON.stringify(profile), 'utf8');
+        
+        // Include profile image if provided
+        if (profileImageFile) {
+          const base64Data = await imageToBase64(profileImageFile);
+          profileDataToSave.avatar = `data:${profileImageFile.type};base64,${base64Data}`;
+        }
+        
+        inscriptionData = Utils.toArray(JSON.stringify(profileDataToSave), 'utf8');
+      }
+      else if (inscriptionType === 'profile2') {
+        contentType = 'application/json';
+        const profileDataToSave: any = {
+          p: 'profile2',
+          username: profileData.username || 'Anonymous',
+          title: profileData.title || 'BSV User',
+          bio: profileData.bio || 'On-chain profile',
+          timestamp: Date.now()
+        };
+        
+        // Include profile image if provided
+        if (profileImageFile) {
+          const base64Data = await imageToBase64(profileImageFile);
+          profileDataToSave.avatar = `data:${profileImageFile.type};base64,${base64Data}`;
+        }
+        
+        // Include background image if provided
+        if (backgroundImageFile) {
+          const base64Data = await imageToBase64(backgroundImageFile);
+          profileDataToSave.background = `data:${backgroundImageFile.type};base64,${base64Data}`;
+        }
+        
+        inscriptionData = Utils.toArray(JSON.stringify(profileDataToSave), 'utf8');
       }
       else {
         throw new Error('Invalid inscription type or missing data');
@@ -985,6 +1071,10 @@ export const ProfileToken: React.FC = () => {
         setImageFile(null);
         setImagePreview('');
         setProfileData({ username: '', title: '', bio: '', avatar: '' });
+        setProfileImageFile(null);
+        setProfileImagePreview('');
+        setBackgroundImageFile(null);
+        setBackgroundImagePreview('');
         
         // Show warning about waiting
         setTimeout(() => {
@@ -1098,6 +1188,16 @@ export const ProfileToken: React.FC = () => {
               >
                 👤 Profile
               </button>
+              <button
+                onClick={() => setInscriptionType('profile2')}
+                className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                  inscriptionType === 'profile2'
+                    ? 'bg-purple-500 text-white'
+                    : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                }`}
+              >
+                🖼️ Profile2
+              </button>
             </div>
           </div>
 
@@ -1138,10 +1238,10 @@ export const ProfileToken: React.FC = () => {
           <img
             src={imagePreview}
             alt="Preview"
-            className="max-h-48 mx-auto rounded"
+            className="max-h-48 mx-auto rounded mb-2"
           />
-          <p className="text-sm text-gray-400 mt-2">
-            {imageFile?.name} ({Math.round((imageFile?.size || 0) / 1024)}KB)
+          <p className="text-sm text-gray-400">
+            {imageFile?.name}
           </p>
           <p className="text-xs text-gray-500">
             Size: {((imageFile?.size || 0) / 1024).toFixed(0)}KB
@@ -1163,7 +1263,7 @@ export const ProfileToken: React.FC = () => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
           <p className="text-gray-400">Click to upload image</p>
-          <p className="text-xs text-gray-500 mt-1">Max 9.9MB</p>
+          <p className="text-xs text-gray-500 mt-1">Max 5MB</p>
         </div>
       )}
     </label>
@@ -1204,6 +1304,160 @@ export const ProfileToken: React.FC = () => {
                   rows={3}
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Profile Image</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleProfileImageSelect(e, false)}
+                  className="hidden"
+                  id="profile-avatar-upload"
+                />
+                <label
+                  htmlFor="profile-avatar-upload"
+                  className="block w-full p-6 bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-purple-500 transition-colors"
+                >
+                  {profileImagePreview ? (
+                    <div className="text-center">
+                      <img
+                        src={profileImagePreview}
+                        alt="Profile preview"
+                        className="w-24 h-24 mx-auto rounded-full object-cover mb-2"
+                      />
+                      <p className="text-xs text-gray-400">
+                        {profileImageFile?.name} ({((profileImageFile?.size || 0) / 1024).toFixed(0)}KB)
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <svg className="w-10 h-10 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      <p className="text-gray-400 text-sm">Upload profile image</p>
+                      <p className="text-xs text-gray-500 mt-1">Max 5MB</p>
+                    </div>
+                  )}
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* Profile2 Form with Background */}
+          {inscriptionType === 'profile2' && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Username</label>
+                <input
+                  type="text"
+                  value={profileData.username}
+                  onChange={(e) => setProfileData({ ...profileData, username: e.target.value })}
+                  placeholder="satoshi"
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Title</label>
+                <input
+                  type="text"
+                  value={profileData.title}
+                  onChange={(e) => setProfileData({ ...profileData, title: e.target.value })}
+                  placeholder="Bitcoin Creator"
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Bio</label>
+                <textarea
+                  value={profileData.bio}
+                  onChange={(e) => setProfileData({ ...profileData, bio: e.target.value })}
+                  placeholder="Building peer-to-peer electronic cash..."
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white"
+                  rows={3}
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                {/* Profile Image */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Profile Image</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleProfileImageSelect(e, false)}
+                    className="hidden"
+                    id="profile2-avatar-upload"
+                  />
+                  <label
+                    htmlFor="profile2-avatar-upload"
+                    className="block w-full p-4 bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-purple-500 transition-colors"
+                  >
+                    {profileImagePreview ? (
+                      <div className="text-center">
+                        <img
+                          src={profileImagePreview}
+                          alt="Profile preview"
+                          className="w-20 h-20 mx-auto rounded-full object-cover mb-1"
+                        />
+                        <p className="text-xs text-gray-400">
+                          {((profileImageFile?.size || 0) / 1024).toFixed(0)}KB
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="text-center">
+                        <svg className="w-8 h-8 mx-auto text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        <p className="text-xs text-gray-400">Profile</p>
+                      </div>
+                    )}
+                  </label>
+                </div>
+
+                {/* Background Image */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Background Image</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleProfileImageSelect(e, true)}
+                    className="hidden"
+                    id="profile2-background-upload"
+                  />
+                  <label
+                    htmlFor="profile2-background-upload"
+                    className="block w-full p-4 bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-purple-500 transition-colors"
+                  >
+                    {backgroundImagePreview ? (
+                      <div className="text-center">
+                        <img
+                          src={backgroundImagePreview}
+                          alt="Background preview"
+                          className="w-full h-20 mx-auto object-cover rounded mb-1"
+                        />
+                        <p className="text-xs text-gray-400">
+                          {((backgroundImageFile?.size || 0) / 1024).toFixed(0)}KB
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="text-center">
+                        <svg className="w-8 h-8 mx-auto text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <p className="text-xs text-gray-400">Background</p>
+                      </div>
+                    )}
+                  </label>
+                </div>
+              </div>
+              
+              {(profileImageFile || backgroundImageFile) && (
+                <div className="p-2 bg-gray-900 rounded text-xs">
+                  <p className="text-gray-400">
+                    Total size: {(((profileImageFile?.size || 0) + (backgroundImageFile?.size || 0)) / 1024).toFixed(0)}KB 
+                    / 5120KB ({(((profileImageFile?.size || 0) + (backgroundImageFile?.size || 0)) / (5 * 1024 * 1024) * 100).toFixed(1)}%)
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -1225,7 +1479,8 @@ export const ProfileToken: React.FC = () => {
           <button
             onClick={createOrdinal}
             disabled={loading || !keyData.privateKey || balance.confirmed < 500 || 
-              (inscriptionType === 'image' && !imageFile) || 
+              (inscriptionType === 'image' && !imageFile) ||
+              (inscriptionType === 'profile2' && !profileImageFile && !backgroundImageFile) ||
               (Date.now() - lastTransactionTime < 5000)}
             className="w-full py-3 px-6 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -1257,10 +1512,10 @@ export const ProfileToken: React.FC = () => {
               <li>• Text inscriptions: ~1 sat minimum</li>
               <li>• Image fees: ~1 sat per KB</li>
               <li>• 1MB image: ~1,000 sats</li>
-              <li>• 9.9MB image: ~{Math.ceil(9.9 * 1024 * 1.37).toLocaleString()} sats</li>
+              <li>• 5MB max size: ~{Math.ceil(5 * 1024 * 1.37).toLocaleString()} sats</li>
+              <li>• Profile with images stores full data on-chain</li>
+              <li>• Profile2 supports avatar + background</li>
               <li>• BSV fee rate: {currentFeeRate} sat/KB</li>
-              <li>• Each inscription gets a unique ID: {`<txid>_0`}</li>
-              <li>• Inscriptions are permanent and tradeable</li>
             </ul>
           </div>
         </div>
