@@ -498,7 +498,8 @@
 
 
 //// Further development of the ProfileToken component V17
-import React, { useState, useEffect  } from 'react';
+import React, { useState, useEffect } from 'react';
+
 import { useWalletStore } from '../store/WalletStore';
 import { UTXOManager } from '../utils/blockchain';
 import { PrivateKey, Transaction, P2PKH, Script, Utils } from '@bsv/sdk';
@@ -534,6 +535,7 @@ export const ProfileToken: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [transactionQueue, setTransactionQueue] = useState(false);
   const [lastTransactionTime, setLastTransactionTime] = useState(0);
+  const [currentFeeRate, setCurrentFeeRate] = useState<number>(1); // Default 1 sat/KB (not per byte!)
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info' | null; message: string }>({ 
     type: null, 
     message: '' 
@@ -545,6 +547,79 @@ export const ProfileToken: React.FC = () => {
 
   // Backend proxy URL
   const BROADCAST_PROXY_URL = 'http://localhost:3001';
+
+  // Fetch current fee rate from the network
+  const fetchCurrentFeeRate = async () => {
+    try {
+      // BSV typically uses 1 sat/KB rate
+      // This is much lower than BTC's sat/byte rate
+      const defaultRateSatPerKB = 1;
+      
+      // Try to get fee estimates from WhatsOnChain or other services
+      const response = await fetch(
+        `https://api.whatsonchain.com/v1/bsv/${network === 'testnet' ? 'test' : 'main'}/fee/estimates`
+      ).catch(() => null);
+
+      if (response && response.ok) {
+        const feeData = await response.json();
+        // BSV fees are typically given in sat/byte but we need sat/KB
+        // If the API returns sat/byte, multiply by 1000
+        const feeRatePerByte = feeData.standard || feeData.halfHour || 0.001;
+        const feeRatePerKB = feeRatePerByte * 1000;
+        
+        // BSV mainnet typically charges 1 sat/KB
+        const actualRate = Math.max(defaultRateSatPerKB, Math.round(feeRatePerKB));
+        setCurrentFeeRate(actualRate);
+        console.log(`Current network fee rate: ${actualRate} sat/KB`);
+        return actualRate;
+      }
+    } catch (error) {
+      console.log('Could not fetch fee rate, using default BSV rate');
+    }
+    
+    // Default BSV fee rate: 1 sat/KB
+    const defaultRate = 1;
+    setCurrentFeeRate(defaultRate);
+    console.log(`Using default BSV fee rate: ${defaultRate} sat/KB`);
+    return defaultRate;
+  };
+
+  // Calculate transaction size and fee based on BSV's sat/KB model
+  const calculateTransactionFee = (
+    numInputs: number,
+    numOutputs: number,
+    dataSize: number,
+    feeRatePerKB: number = currentFeeRate
+  ): { estimatedSize: number; fee: number } => {
+    // Transaction size calculation:
+    // Base: ~10 bytes
+    // Each input: ~148 bytes (P2PKH)
+    // Each output: ~34 bytes (P2PKH)
+    // Data inscription overhead: ~10 bytes + data size
+    
+    const baseSize = 10;
+    const inputSize = numInputs * 148;
+    const outputSize = numOutputs * 34;
+    const inscriptionOverhead = 10;
+    
+    const totalSizeBytes = baseSize + inputSize + outputSize + inscriptionOverhead + dataSize;
+    const totalSizeKB = totalSizeBytes / 1000; // Convert to KB
+    
+    // BSV charges per KB, minimum 1 sat
+    const fee = Math.max(1, Math.ceil(totalSizeKB * feeRatePerKB));
+    
+    console.log(`Transaction size calculation (BSV sat/KB model):`);
+    console.log(`- Base: ${baseSize} bytes`);
+    console.log(`- Inputs (${numInputs}): ${inputSize} bytes`);
+    console.log(`- Outputs (${numOutputs}): ${outputSize} bytes`);
+    console.log(`- Inscription data: ${dataSize} bytes`);
+    console.log(`- Total size: ${totalSizeBytes} bytes (${totalSizeKB.toFixed(3)} KB)`);
+    console.log(`- Fee rate: ${feeRatePerKB} sat/KB`);
+    console.log(`- Total fee: ${fee} sats`);
+    console.log(`- Actual rate: ${(fee / totalSizeKB).toFixed(3)} sat/KB`);
+    
+    return { estimatedSize: totalSizeBytes, fee };
+  };
 
   // Update timer for button
   useEffect(() => {
@@ -562,19 +637,34 @@ export const ProfileToken: React.FC = () => {
     }
   }, [lastTransactionTime]);
 
-  // Handle image selection
+  // Fetch fee rate on component mount and network change
+  useEffect(() => {
+    fetchCurrentFeeRate();
+  }, [network]);
+
+  // Handle image selection with increased limit
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file size (limit to 100KB for now)
-    if (file.size > 100 * 1024) {
+    // Validate file size (limit to 9.9MB)
+    const maxSize = 9.9 * 1024 * 1024; // 9.9MB in bytes
+    if (file.size > maxSize) {
       setStatus({ 
         type: 'error', 
-        message: 'Image too large. Please select an image under 100KB.' 
+        message: `Image too large. Maximum size is 9.9MB, your file is ${(file.size / (1024 * 1024)).toFixed(2)}MB.` 
       });
       return;
     }
+
+    // Calculate estimated fee for this image
+    const base64Size = Math.ceil(file.size * 1.37); // Base64 increases size by ~37%
+    const { estimatedSize, fee } = calculateTransactionFee(1, 2, base64Size);
+    
+    setStatus({ 
+      type: 'info', 
+      message: `Image size: ${(file.size / 1024).toFixed(0)}KB. Estimated fee: ${fee} sats (${(fee / (estimatedSize / 1000)).toFixed(3)} sat/KB)` 
+    });
 
     setImageFile(file);
 
@@ -750,6 +840,9 @@ export const ProfileToken: React.FC = () => {
 
       console.log(`Creating ${inscriptionType} inscription, size: ${inscriptionData.length} bytes`);
 
+      // Fetch current fee rate
+      const feeRate = await fetchCurrentFeeRate();
+
       // Get UTXOs with force refresh to ensure we have the latest
       const utxoManager = new UTXOManager(keyData.address, network, whatsOnChainApiKey);
       const utxos = await utxoManager.fetchUTXOs(true); // Force refresh
@@ -758,18 +851,38 @@ export const ProfileToken: React.FC = () => {
         throw new Error('No UTXOs available. Please wait for previous transactions to confirm.');
       }
 
-      // Calculate fee based on inscription size
-      const baseFee = 200;
-      const dataFee = Math.ceil(inscriptionData.length * 0.5);
-      const totalFee = baseFee + dataFee;
+      // Calculate accurate fee based on inscription size and current rate
+      // Start with 1 input, 2 outputs (inscription + change)
+      let { estimatedSize, fee: estimatedFee } = calculateTransactionFee(1, 2, inscriptionData.length, feeRate);
       
-      const { selected, total } = utxoManager.selectUTXOs(1 + totalFee);
+      // Select UTXOs with the estimated fee
+      let { selected, total } = utxoManager.selectUTXOs(1 + estimatedFee);
+      
+      // If we need more inputs, recalculate fee
+      if (selected.length > 1) {
+        const recalc = calculateTransactionFee(selected.length, 2, inscriptionData.length, feeRate);
+        estimatedFee = recalc.fee;
+        
+        // Re-select if needed
+        const result = utxoManager.selectUTXOs(1 + estimatedFee);
+        selected = result.selected;
+        total = result.total;
+      }
       
       if (selected.length === 0) {
-        throw new Error(`Insufficient funds. Need ${1 + totalFee} satoshis, have ${total}`);
+        throw new Error(`Insufficient funds. Need ${1 + estimatedFee} satoshis, have ${total}`);
       }
 
-      console.log(`Selected ${selected.length} UTXOs, total: ${total} sats, fee: ${totalFee} sats`);
+      console.log(`Selected ${selected.length} UTXOs, total: ${total} sats, estimated fee: ${estimatedFee} sats`);
+
+      // Show fee estimate to user for large inscriptions
+      if (inscriptionData.length > 100000) { // > 100KB
+        const sizeKB = (inscriptionData.length / 1024).toFixed(1);
+        setStatus({
+          type: 'info',
+          message: `Large inscription (${sizeKB}KB). Fee: ${estimatedFee} sats at ${feeRate} sat/KB`
+        });
+      }
 
       // Create transaction
       const privateKey = PrivateKey.fromWif(keyData.privateKeyWif) || PrivateKey.fromHex(keyData.privateKeyHex);
@@ -826,14 +939,14 @@ export const ProfileToken: React.FC = () => {
       });
 
       // Output 2: Change
-      const change = totalInput - 1 - totalFee;
+      const change = totalInput - 1 - estimatedFee;
       if (change > 0) {
         tx.addOutput({
           lockingScript: new P2PKH().lock(address),
           satoshis: change
         });
       } else if (change < 0) {
-        throw new Error('Insufficient funds for fee');
+        throw new Error(`Insufficient funds for fee. Need ${Math.abs(change)} more satoshis.`);
       }
 
       // Sign transaction
@@ -841,10 +954,14 @@ export const ProfileToken: React.FC = () => {
 
       const txHex = tx.toHex();
       const txSize = txHex.length / 2;
+      const txSizeKB = txSize / 1000;
+      const actualFeeRate = estimatedFee / txSizeKB;
 
       console.log('Transaction created:');
-      console.log(`- Size: ${txSize} bytes`);
-      console.log(`- Fee: ${totalFee} sats (${(totalFee/txSize).toFixed(2)} sats/byte)`);
+      console.log(`- Size: ${txSize} bytes (${txSizeKB.toFixed(3)}KB)`);
+      console.log(`- Fee: ${estimatedFee} sats`);
+      console.log(`- Actual fee rate: ${actualFeeRate.toFixed(3)} sat/KB`);
+      console.log(`- Target fee rate: ${feeRate} sat/KB`);
 
       // Broadcast
       setStatus({ type: 'info', message: 'Broadcasting transaction...' });
@@ -1002,43 +1119,57 @@ export const ProfileToken: React.FC = () => {
           )}
 
           {/* Image Upload */}
-          {inscriptionType === 'image' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Select Image</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageSelect}
-                className="hidden"
-                id="image-upload"
-              />
-              <label
-                htmlFor="image-upload"
-                className="block w-full p-8 bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-purple-500 transition-colors"
-              >
-                {imagePreview ? (
-                  <div className="text-center">
-                    <img
-                      src={imagePreview}
-                      alt="Preview"
-                      className="max-h-48 mx-auto rounded"
-                    />
-                    <p className="text-sm text-gray-400 mt-2">
-                      {imageFile?.name} ({Math.round((imageFile?.size || 0) / 1024)}KB)
-                    </p>
-                  </div>
-                ) : (
-                  <div className="text-center">
-                    <svg className="w-12 h-12 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <p className="text-gray-400">Click to upload image</p>
-                    <p className="text-xs text-gray-500 mt-1">Max 100KB (for now)</p>
-                  </div>
-                )}
-              </label>
-            </div>
-          )}
+{inscriptionType === 'image' && (
+  <div>
+    <label className="block text-sm font-medium text-gray-300 mb-2">Select Image</label>
+    <input
+      type="file"
+      accept="image/*"
+      onChange={handleImageSelect}
+      className="hidden"
+      id="image-upload"
+    />
+    <label
+      htmlFor="image-upload"
+      className="block w-full p-8 bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-purple-500 transition-colors"
+    >
+      {imagePreview ? (
+        <div className="text-center">
+          <img
+            src={imagePreview}
+            alt="Preview"
+            className="max-h-48 mx-auto rounded"
+          />
+          <p className="text-sm text-gray-400 mt-2">
+            {imageFile?.name} ({Math.round((imageFile?.size || 0) / 1024)}KB)
+          </p>
+          <p className="text-xs text-gray-500">
+            Size: {((imageFile?.size || 0) / 1024).toFixed(0)}KB
+            {imageFile && imageFile.size > 1024 * 1024 &&
+              ` (${(imageFile.size / 1024 / 1024).toFixed(2)}MB)`
+            }
+          </p>
+          <p className="text-xs text-yellow-400 mt-1">
+            Estimated fee: {(() => {
+              const base64Size = Math.ceil((imageFile?.size || 0) * 1.37);
+              const { fee } = calculateTransactionFee(1, 2, base64Size, currentFeeRate);
+              return `${fee.toLocaleString()} sats`;
+            })()}
+          </p>
+        </div>
+      ) : (
+        <div className="text-center">
+          <svg className="w-12 h-12 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          <p className="text-gray-400">Click to upload image</p>
+          <p className="text-xs text-gray-500 mt-1">Max 9.9MB</p>
+        </div>
+      )}
+    </label>
+  </div>
+)}
+
 
           {/* Profile Form */}
           {inscriptionType === 'profile' && (
@@ -1123,9 +1254,11 @@ export const ProfileToken: React.FC = () => {
           <div className="p-3 bg-blue-900 bg-opacity-30 rounded-lg border border-blue-700">
             <h4 className="text-sm font-medium text-blue-300 mb-1">💡 Tips:</h4>
             <ul className="text-xs text-gray-300 space-y-1">
-              <li>• Text inscriptions are cheapest (~200-300 sats total)</li>
-              <li>• Images cost more based on file size (keep under 100KB)</li>
-              <li>• Profile inscriptions create on-chain identity</li>
+              <li>• Text inscriptions: ~1 sat minimum</li>
+              <li>• Image fees: ~1 sat per KB</li>
+              <li>• 1MB image: ~1,000 sats</li>
+              <li>• 9.9MB image: ~{Math.ceil(9.9 * 1024 * 1.37).toLocaleString()} sats</li>
+              <li>• BSV fee rate: {currentFeeRate} sat/KB</li>
               <li>• Each inscription gets a unique ID: {`<txid>_0`}</li>
               <li>• Inscriptions are permanent and tradeable</li>
             </ul>
@@ -1135,8 +1268,6 @@ export const ProfileToken: React.FC = () => {
     </div>
   );
 };
-
-
 
 
 
