@@ -500,6 +500,7 @@
 //// Further development of the ProfileToken component V44 all working up to 5mb "BSV Ordinal Wallet Development"
 // V45 introduction of Profile image + text ; then profile image + bakground image + text  
 
+// V45 introduction of Profile image + text ; then profile image + bakground image + text  
 import React, { useState, useEffect } from 'react';
 import { useWalletStore } from '../store/WalletStore';
 import { UTXOManager } from '../utils/blockchain';
@@ -1523,6 +1524,10 @@ export const ProfileToken: React.FC = () => {
     </div>
   );
 };
+
+
+
+
 
 
 
