@@ -72,7 +72,7 @@ export const ProfileToken: React.FC = () => {
   const fetchCurrentFeeRate = async () => {
     try {
       // BSV typically uses 1 sat/KB rate
-      // This is much lower than BTC's sat/byte rate
+
       const defaultRateSatPerKB = 1;
       
       // Try to get fee estimates from WhatsOnChain or other services
@@ -265,7 +265,7 @@ export const ProfileToken: React.FC = () => {
       reader.readAsDataURL(file);
     }
 
-    // Calculate estimated fee
+    // Calculate estimated fee   fetchMerkleProof
     const base64Size = Math.ceil(totalSize * 1.37);
     const { estimatedSize, fee } = calculateTransactionFee(1, 2, base64Size);
     
@@ -1178,7 +1178,6 @@ export const ProfileToken: React.FC = () => {
               </label>
             </div>
           )}
-
 
           {/* Profile Form */}
           {inscriptionType === 'profile' && (
