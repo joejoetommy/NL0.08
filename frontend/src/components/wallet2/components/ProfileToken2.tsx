@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useWalletStore } from '../store/WalletStore';
 import { UTXOManager } from '../utils/blockchain';
@@ -672,73 +671,166 @@ export const ProfileToken: React.FC = () => {
     });
   };
 
-  // Convert image to base64
-  const imageToBase64 = (file: File): Promise<string> => {
+  // Convert image to base64 with optional compression
+  const imageToBase64 = (file: File, maxWidth?: number): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = reader.result as string;
-        const base64Data = base64.split(',')[1];
-        resolve(base64Data);
+      
+      // For smaller files, just convert directly
+      if (file.size < 500000 && !maxWidth) { // < 500KB
+        reader.onload = () => {
+          const base64 = reader.result as string;
+          const base64Data = base64.split(',')[1];
+          resolve(base64Data);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+        return;
+      }
+      
+      // For larger files, compress using canvas
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Failed to get canvas context'));
+            return;
+          }
+          
+          // Calculate new dimensions
+          let width = img.width;
+          let height = img.height;
+          const maxDimension = maxWidth || 1200; // Default max width
+          
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = (height / width) * maxDimension;
+              width = maxDimension;
+            } else {
+              width = (width / height) * maxDimension;
+              height = maxDimension;
+            }
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          
+          // Draw and compress
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Try different quality levels to get under size limit
+          let quality = 0.9;
+          let dataUrl = canvas.toDataURL(file.type || 'image/jpeg', quality);
+          
+          // Reduce quality until size is acceptable
+          while (dataUrl.length > 2000000 && quality > 0.1) { // ~1.5MB base64
+            quality -= 0.1;
+            dataUrl = canvas.toDataURL('image/jpeg', quality);
+          }
+          
+          const base64Data = dataUrl.split(',')[1];
+          console.log(`Image compressed: original ${(file.size / 1024).toFixed(0)}KB, compressed ${(base64Data.length * 0.75 / 1024).toFixed(0)}KB, quality ${quality.toFixed(1)}`);
+          resolve(base64Data);
+        };
+        img.onerror = () => reject(new Error('Failed to load image'));
+        img.src = e.target?.result as string;
       };
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
   };
 
-  // Create the inscription script
+  // Create the inscription script with proper handling for large data
   const createInscriptionScript = (pubKeyHash: number[], contentType: string, data: Uint8Array): Script => {
-    const script = new Script();
+    // Build the script manually as hex to avoid SDK limitations
+    let scriptHex = '';
     
-    script.writeBin([0x76, 0xa9, 0x14]);
-    script.writeBin(pubKeyHash);
-    script.writeBin([0x88, 0xac]);
-    
-    script.writeBin([0x00, 0x63]);
-    
-    script.writeBin([0x03]);
-    script.writeBin([0x6f, 0x72, 0x64]);
-    
-    script.writeBin([0x51]);
-    
-    const ctBytes = Utils.toArray(contentType, 'utf8');
-    if (ctBytes.length <= 75) {
-      script.writeBin([ctBytes.length]);
-      script.writeBin(ctBytes);
-    } else {
-      script.writeBin([0x4c, ctBytes.length]);
-      script.writeBin(ctBytes);
+    try {
+      // P2PKH part: OP_DUP OP_HASH160 <pubKeyHash> OP_EQUALVERIFY OP_CHECKSIG
+      scriptHex += '76a914'; // OP_DUP OP_HASH160 PUSH(20)
+      scriptHex += pubKeyHash.map(b => b.toString(16).padStart(2, '0')).join('');
+      scriptHex += '88ac'; // OP_EQUALVERIFY OP_CHECKSIG
+      
+      // Inscription envelope: OP_FALSE OP_IF
+      scriptHex += '0063'; // OP_FALSE OP_IF
+      
+      // Ordinal protocol identifier: PUSH(3) "ord"
+      scriptHex += '03'; // PUSH 3 bytes
+      scriptHex += '6f7264'; // "ord"
+      
+      // Separator: OP_1
+      scriptHex += '51'; // OP_1
+      
+      // Content type
+      const ctBytes = Utils.toArray(contentType, 'utf8');
+      const ctLength = ctBytes.length;
+      
+      if (ctLength <= 75) {
+        scriptHex += ctLength.toString(16).padStart(2, '0');
+      } else if (ctLength <= 255) {
+        scriptHex += '4c'; // OP_PUSHDATA1
+        scriptHex += ctLength.toString(16).padStart(2, '0');
+      } else {
+        scriptHex += '4d'; // OP_PUSHDATA2
+        scriptHex += (ctLength & 0xff).toString(16).padStart(2, '0');
+        scriptHex += ((ctLength >> 8) & 0xff).toString(16).padStart(2, '0');
+      }
+      scriptHex += ctBytes.map(b => b.toString(16).padStart(2, '0')).join('');
+      
+      // Separator: OP_0
+      scriptHex += '00'; // OP_0
+      
+      // Data with proper length encoding
+      const dataArray = Array.from(data);
+      const dataLength = dataArray.length;
+      
+      console.log(`Encoding ${dataLength} bytes of inscription data`);
+      
+      if (dataLength <= 75) {
+        // Direct push
+        scriptHex += dataLength.toString(16).padStart(2, '0');
+      } else if (dataLength <= 255) {
+        // OP_PUSHDATA1
+        scriptHex += '4c';
+        scriptHex += dataLength.toString(16).padStart(2, '0');
+      } else if (dataLength <= 65535) {
+        // OP_PUSHDATA2
+        scriptHex += '4d';
+        scriptHex += (dataLength & 0xff).toString(16).padStart(2, '0');
+        scriptHex += ((dataLength >> 8) & 0xff).toString(16).padStart(2, '0');
+      } else {
+        // OP_PUSHDATA4
+        scriptHex += '4e';
+        scriptHex += (dataLength & 0xff).toString(16).padStart(2, '0');
+        scriptHex += ((dataLength >> 8) & 0xff).toString(16).padStart(2, '0');
+        scriptHex += ((dataLength >> 16) & 0xff).toString(16).padStart(2, '0');
+        scriptHex += ((dataLength >> 24) & 0xff).toString(16).padStart(2, '0');
+      }
+      
+      // Convert data array to hex string in chunks to avoid call stack issues
+      const chunkSize = 10000; // Process 10KB at a time
+      for (let i = 0; i < dataArray.length; i += chunkSize) {
+        const chunk = dataArray.slice(i, Math.min(i + chunkSize, dataArray.length));
+        scriptHex += chunk.map(b => b.toString(16).padStart(2, '0')).join('');
+      }
+      
+      // End inscription envelope: OP_ENDIF
+      scriptHex += '68'; // OP_ENDIF
+      
+      // Create Script from hex
+      const script = Script.fromHex(scriptHex);
+      
+      console.log(`Created inscription script: ${(scriptHex.length / 2 / 1024).toFixed(2)}KB`);
+      
+      return script;
+      
+    } catch (error) {
+      console.error('Error creating inscription script:', error);
+      console.error('Script hex length so far:', scriptHex.length);
+      throw new Error('Failed to create inscription script: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
-    
-    script.writeBin([0x00]);
-    
-    const dataArray = Array.from(data);
-    if (dataArray.length <= 75) {
-      script.writeBin([dataArray.length]);
-      script.writeBin(dataArray);
-    } else if (dataArray.length <= 255) {
-      script.writeBin([0x4c]);
-      script.writeBin([dataArray.length]);
-      script.writeBin(dataArray);
-    } else if (dataArray.length <= 65535) {
-      script.writeBin([0x4d]);
-      script.writeBin([dataArray.length & 0xff]);
-      script.writeBin([dataArray.length >> 8]);
-      script.writeBin(dataArray);
-    } else {
-      script.writeBin([0x4e]);
-      script.writeBin([
-        dataArray.length & 0xff,
-        (dataArray.length >> 8) & 0xff,
-        (dataArray.length >> 16) & 0xff,
-        (dataArray.length >> 24) & 0xff
-      ]);
-      script.writeBin(dataArray);
-    }
-    
-    script.writeBin([0x68]);
-    
-    return script;
   };
 
   // Broadcast transaction with multiple fallback methods
@@ -870,15 +962,66 @@ export const ProfileToken: React.FC = () => {
           timestamp: Date.now()
         };
         
+        // Handle image data more carefully for large files
         if (profileImageFile) {
-          const base64Data = await imageToBase64(profileImageFile);
-          profileDataToSave.avatar = `data:${profileImageFile.type};base64,${base64Data}`;
+          try {
+            // Compress profile images more aggressively
+            const base64Data = await imageToBase64(profileImageFile, 800); // Max 800px
+            const avatarDataSize = base64Data.length;
+            console.log(`Avatar size: ${(avatarDataSize * 0.75 / 1024).toFixed(2)}KB`);
+            
+            // Only add if size is reasonable
+            if (avatarDataSize * 0.75 < 500000) { // < 500KB actual size
+              profileDataToSave.avatar = `data:${profileImageFile.type};base64,${base64Data}`;
+            } else {
+              console.warn('Avatar too large after compression, skipping');
+              setStatus({ 
+                type: 'error', 
+                message: 'Profile image too large. Please use a smaller image.' 
+              });
+              return;
+            }
+          } catch (imgError) {
+            console.error('Error processing profile image:', imgError);
+            setStatus({ 
+              type: 'error', 
+              message: 'Failed to process profile image' 
+            });
+            return;
+          }
         }
         
         if (inscriptionType === 'profile2' && backgroundImageFile) {
-          const base64Data = await imageToBase64(backgroundImageFile);
-          profileDataToSave.background = `data:${backgroundImageFile.type};base64,${base64Data}`;
+          try {
+            // Compress background images more aggressively
+            const base64Data = await imageToBase64(backgroundImageFile, 1200); // Max 1200px
+            const bgDataSize = base64Data.length;
+            console.log(`Background size: ${(bgDataSize * 0.75 / 1024).toFixed(2)}KB`);
+            
+            // Only add if size is reasonable
+            if (bgDataSize * 0.75 < 800000) { // < 800KB actual size
+              profileDataToSave.background = `data:${backgroundImageFile.type};base64,${base64Data}`;
+            } else {
+              console.warn('Background too large after compression, skipping');
+              setStatus({ 
+                type: 'error', 
+                message: 'Background image too large. Please use a smaller image.' 
+              });
+              return;
+            }
+          } catch (imgError) {
+            console.error('Error processing background image:', imgError);
+            setStatus({ 
+              type: 'error', 
+              message: 'Failed to process background image' 
+            });
+            return;
+          }
         }
+        
+        // Convert to JSON and check size
+        const profileJson = JSON.stringify(profileDataToSave);
+        console.log(`Profile JSON size before encryption: ${(profileJson.length / 1024).toFixed(2)}KB`);
         
         if (encryptionLevel > 0 && keySegment) {
           // Encrypt the profile data
@@ -895,11 +1038,25 @@ export const ProfileToken: React.FC = () => {
             data: encryptedData,
             metadata
           };
-          inscriptionData = Utils.toArray(JSON.stringify(wrapper), 'utf8');
+          
+          // Check final size
+          const wrapperJson = JSON.stringify(wrapper);
+          console.log(`Encrypted wrapper size: ${(wrapperJson.length / 1024).toFixed(2)}KB`);
+          
+          inscriptionData = Utils.toArray(wrapperJson, 'utf8');
         } else {
           // Unencrypted profile
           contentType = 'application/json';
-          inscriptionData = Utils.toArray(JSON.stringify(profileDataToSave), 'utf8');
+          inscriptionData = Utils.toArray(profileJson, 'utf8');
+        }
+        
+        // Final size check
+        const finalSizeKB = inscriptionData.length / 1024;
+        const finalSizeMB = finalSizeKB / 1024;
+        console.log(`Final inscription size: ${finalSizeKB.toFixed(2)}KB (${finalSizeMB.toFixed(3)}MB)`);
+        
+        if (finalSizeMB > 5) {
+          throw new Error(`Inscription too large: ${finalSizeMB.toFixed(2)}MB. Maximum allowed is 5MB.`);
         }
       }
       else {
@@ -907,6 +1064,16 @@ export const ProfileToken: React.FC = () => {
       }
 
       console.log(`Creating ${inscriptionType} inscription, size: ${inscriptionData.length} bytes, encryption level: ${encryptionLevel}`);
+
+      // Add detailed size warning
+      if (inscriptionData.length > 1000000) { // > 1MB
+        const sizeMB = (inscriptionData.length / 1024 / 1024).toFixed(2);
+        console.warn(`Large inscription detected: ${sizeMB}MB`);
+        setStatus({
+          type: 'info',
+          message: `Creating large inscription (${sizeMB}MB). This may take longer to process...`
+        });
+      }
 
       const feeRate = await fetchCurrentFeeRate();
 
@@ -950,6 +1117,15 @@ export const ProfileToken: React.FC = () => {
       const pubKeyHash = publicKey.toHash();
 
       const inscriptionScript = createInscriptionScript(pubKeyHash, contentType, inscriptionData);
+      
+      // Check script size
+      const scriptSize = inscriptionScript.toHex().length / 2;
+      console.log(`Inscription script size: ${(scriptSize / 1024).toFixed(2)}KB`);
+      
+      // BSV has various limits, but for safety let's warn on large scripts
+      if (scriptSize > 100000) { // 100KB script
+        console.warn(`Very large script: ${(scriptSize / 1024).toFixed(2)}KB`);
+      }
 
       const tx = new Transaction();
 
@@ -1058,9 +1234,25 @@ export const ProfileToken: React.FC = () => {
 
     } catch (error) {
       console.error('Error creating ordinal:', error);
+      
+      // More specific error messages
+      let errorMessage = 'Failed to create ordinal';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('too many function arguments')) {
+          errorMessage = 'Transaction too complex. Try reducing image sizes or removing one image.';
+        } else if (error.message.includes('too large')) {
+          errorMessage = error.message; // Use our custom size error
+        } else if (error.message.includes('Insufficient funds')) {
+          errorMessage = error.message;
+        } else {
+          errorMessage = `Error: ${error.message}`;
+        }
+      }
+      
       setStatus({ 
         type: 'error', 
-        message: error instanceof Error ? error.message : 'Failed to create ordinal' 
+        message: errorMessage 
       });
     } finally {
       setLoading(false);

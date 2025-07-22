@@ -22,6 +22,10 @@ export const Messages: React.FC = () => {
   const [inscriptionError, setInscriptionError] = useState<string>('');
   const [decryptedInscription, setDecryptedInscription] = useState<string>('');
   const [inscriptionMetadata, setInscriptionMetadata] = useState<any>(null);
+  const [decryptedImage, setDecryptedImage] = useState<string>(''); // Add state for decrypted images
+  const [decryptedBackgroundImage, setDecryptedBackgroundImage] = useState<string>(''); // Add state for background images
+  const [decryptedContentType, setDecryptedContentType] = useState<'text' | 'image' | 'profile' | null>(null);
+  const [decryptionProgress, setDecryptionProgress] = useState<string>(''); // Progress indicator for large files
 
   const {
     keyData,
@@ -275,16 +279,25 @@ export const Messages: React.FC = () => {
 
     try {
       // Parse the JSON transaction
-      const transaction = JSON.parse(inscriptionJson);
+      let transaction;
+      try {
+        transaction = JSON.parse(inscriptionJson);
+      } catch (parseError) {
+        console.error('JSON Parse Error:', parseError);
+        setInscriptionError('Invalid JSON format. Please check that you\'ve pasted valid JSON.');
+        return;
+      }
       
       // Look for the inscription in vout[0].scriptPubKey
       const scriptHex = transaction.vout?.[0]?.scriptPubKey?.hex;
       if (!scriptHex) {
-        setInscriptionError('No inscription found in vout[0]');
+        console.error('Transaction structure:', transaction);
+        setInscriptionError('No inscription found in vout[0]. Transaction structure may be incorrect.');
         return;
       }
 
-      console.log('Script hex:', scriptHex);
+      console.log('Script hex length:', scriptHex.length);
+      console.log('Script hex preview:', scriptHex.substring(0, 100) + '...');
 
       // Extract JSON content from hex
       // Look for application/json marker: 6170706c69636174696f6e2f6a736f6e
@@ -292,83 +305,189 @@ export const Messages: React.FC = () => {
       const jsonIndex = scriptHex.indexOf(jsonMarker);
       
       if (jsonIndex === -1) {
-        setInscriptionError('No JSON inscription found in transaction');
+        console.error('No JSON marker found in script hex');
+        setInscriptionError('No JSON inscription found in transaction. Looking for marker: ' + jsonMarker);
         return;
       }
 
+      console.log('JSON marker found at index:', jsonIndex);
+
       // Find the JSON data after the marker
       let dataStart = jsonIndex + jsonMarker.length;
-      // Skip over protocol bytes (usually 0100014c01bc4cbc or similar)
+      
+      // Skip over protocol bytes
+      // Common patterns: 0100, 014c, 01bc, 4cbc, etc.
+      let skippedBytes = '';
       while (dataStart < scriptHex.length && !scriptHex.substring(dataStart, dataStart + 2).match(/7b/)) {
+        skippedBytes += scriptHex.substring(dataStart, dataStart + 2);
         dataStart += 2;
+        
+        // Safety check to prevent infinite loop
+        if (skippedBytes.length > 20) {
+          console.error('Could not find JSON start after skipping:', skippedBytes);
+          break;
+        }
       }
+      
+      console.log('Skipped bytes:', skippedBytes);
+      console.log('JSON data starts at index:', dataStart);
 
       // Extract the JSON hex - look for the ending pattern
       let jsonHex = '';
-      for (let i = dataStart; i < scriptHex.length; i += 2) {
+      let extractedLength = 0;
+      const maxExtractLength = 10000000; // 10MB hex chars (5MB actual data)
+      
+      // For large files, we need to handle the data more carefully
+      setDecryptionProgress('Extracting inscription data...');
+      
+      for (let i = dataStart; i < scriptHex.length && extractedLength < maxExtractLength; i += 2) {
         const byte = scriptHex.substring(i, i + 2);
+        const nextByte = i + 2 < scriptHex.length ? scriptHex.substring(i + 2, i + 4) : '';
+        
         // Check for end markers
-        if (byte === '01' && i + 2 < scriptHex.length && scriptHex.substring(i + 2, i + 4) === '68') {
-          // End marker found
+        if (byte === '01' && nextByte === '68') {
+          console.log('Found end marker 0168 at position:', i);
           break;
         }
-        // Also check for the '0168' pattern at the very end
-        if (i + 4 >= scriptHex.length && scriptHex.substring(i, i + 4) === '0168') {
-          break;
+        
+        // Also check if we're at the very end
+        if (i + 4 >= scriptHex.length) {
+          const remaining = scriptHex.substring(i);
+          if (remaining === '0168' || remaining === '68') {
+            console.log('Found end marker at end of script');
+            break;
+          }
         }
+        
         jsonHex += byte;
+        extractedLength++;
+        
+        // For very large inscriptions, log progress
+        if (extractedLength % 10000 === 0) {
+          const progressPercent = Math.min(100, (i - dataStart) / (scriptHex.length - dataStart) * 100);
+          setDecryptionProgress(`Extracting data... ${progressPercent.toFixed(1)}%`);
+          console.log(`Extracted ${extractedLength} bytes so far...`);
+          
+          // Allow UI to update
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
       }
 
-      console.log('Extracted JSON hex:', jsonHex);
+      console.log('Extracted JSON hex length:', jsonHex.length, 'characters (', jsonHex.length / 2, 'bytes)');
+      
+      if (extractedLength >= maxExtractLength) {
+        console.warn('Reached maximum extraction length. Data may be truncated.');
+        setInscriptionError('Warning: Large inscription may be truncated at 5MB limit');
+      }
 
-      // Convert hex to string
+      // Convert hex to string in chunks for large data
+      setDecryptionProgress('Converting data...');
       let jsonStr = '';
-      for (let i = 0; i < jsonHex.length; i += 2) {
-        jsonStr += String.fromCharCode(parseInt(jsonHex.substr(i, 2), 16));
+      const chunkSize = 10000; // Process 5KB at a time
+      
+      try {
+        for (let i = 0; i < jsonHex.length; i += chunkSize) {
+          const chunk = jsonHex.substring(i, Math.min(i + chunkSize, jsonHex.length));
+          let chunkStr = '';
+          
+          for (let j = 0; j < chunk.length; j += 2) {
+            chunkStr += String.fromCharCode(parseInt(chunk.substr(j, 2), 16));
+          }
+          
+          jsonStr += chunkStr;
+          
+          if (i % 100000 === 0 && i > 0) {
+            const progressPercent = (i / jsonHex.length * 100);
+            setDecryptionProgress(`Converting data... ${progressPercent.toFixed(1)}%`);
+            await new Promise(resolve => setTimeout(resolve, 0));
+          }
+        }
+      } catch (convError) {
+        console.error('Error converting hex to string:', convError);
+        setInscriptionError('Failed to convert hex data to string. Data may be corrupted.');
+        return;
       }
 
-      console.log('Extracted JSON string:', jsonStr);
+      console.log('Extracted JSON string length:', jsonStr.length);
+      console.log('JSON string preview:', jsonStr.substring(0, 200) + '...');
 
       // Parse the extracted JSON
-      const inscriptionData = JSON.parse(jsonStr);
+      let inscriptionData;
+      try {
+        inscriptionData = JSON.parse(jsonStr);
+      } catch (jsonError) {
+        console.error('Error parsing inscription JSON:', jsonError);
+        console.error('Failed JSON string:', jsonStr.substring(0, 500));
+        setInscriptionError('Failed to parse inscription JSON. The data may be truncated or corrupted.');
+        return;
+      }
       
       if (!inscriptionData.encrypted || !inscriptionData.data || !inscriptionData.metadata) {
-        setInscriptionError('This inscription is not encrypted or has invalid format');
+        console.error('Invalid inscription format:', inscriptionData);
+        setInscriptionError('This inscription is not encrypted or has invalid format. Expected fields: encrypted, data, metadata');
         return;
       }
 
       setInscriptionMetadata(inscriptionData.metadata);
       console.log('Inscription metadata:', inscriptionData.metadata);
+      console.log('Encrypted data length:', inscriptionData.data.length);
 
       // Use the key as provided
       const keySegment = decryptionKey.trim();
       console.log('Using key segment:', keySegment, 'Length:', keySegment.length);
+
+      // For level 1, the key should be approximately 13 characters
+      if (inscriptionData.metadata.level === 1 && keySegment.length < 12) {
+        console.warn('Key segment seems too short for level 1. Expected ~13 characters, got:', keySegment.length);
+      }
 
       // Derive encryption key
       const encryptionKey = await BlogEncryption.deriveEncryptionKey(keySegment);
       
       // Convert base64 encrypted data to ArrayBuffer
       const encryptedData = inscriptionData.data;
-      console.log('Encrypted data (base64):', encryptedData);
+      console.log('Encrypted data (base64) length:', encryptedData.length);
       
-      const binaryString = atob(encryptedData);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
+      let bytes;
+      try {
+        const binaryString = atob(encryptedData);
+        bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+      } catch (base64Error) {
+        console.error('Error decoding base64:', base64Error);
+        setInscriptionError('Failed to decode base64 encrypted data.');
+        return;
       }
+      
+      console.log('Encrypted bytes length:', bytes.length);
       
       // Convert hex IV to Uint8Array
       const ivHex = inscriptionData.metadata.iv;
       console.log('IV hex:', ivHex);
       
+      if (!ivHex || ivHex.length % 2 !== 0) {
+        setInscriptionError('Invalid IV in metadata');
+        return;
+      }
+      
       const iv = new Uint8Array(ivHex.match(/.{2}/g).map((byte: string) => parseInt(byte, 16)));
       console.log('IV array:', Array.from(iv));
       
       // Decrypt the data
+      setDecryptionProgress('Decrypting data...');
+      console.log('Attempting decryption...');
       const decryptedStr = await BlogEncryption.decrypt(bytes.buffer, encryptionKey, iv);
+      console.log('Decryption successful! Decrypted length:', decryptedStr.length);
       
       // Handle different content types
       let displayContent = decryptedStr;
+      setDecryptedImage(''); // Reset image state
+      setDecryptedBackgroundImage(''); // Reset background image state
+      setDecryptedContentType(null);
+      setDecryptionProgress('Processing decrypted content...');
+      
       if (inscriptionData.originalType === 'profile' || inscriptionData.originalType === 'profile2') {
         try {
           const profileData = JSON.parse(decryptedStr);
@@ -376,23 +495,100 @@ export const Messages: React.FC = () => {
           if (profileData.timestamp) {
             displayContent += `\nCreated: ${new Date(profileData.timestamp).toLocaleString()}`;
           }
+          
+          // If profile has avatar, display it
+          if (profileData.avatar && profileData.avatar.startsWith('data:')) {
+            console.log('Profile has avatar image');
+            setDecryptedImage(profileData.avatar);
+          }
+          
+          // Handle Profile2 background image
+          if (profileData.background && profileData.background.startsWith('data:') && inscriptionData.originalType === 'profile2') {
+            console.log('Profile2 has background image');
+            setDecryptedBackgroundImage(profileData.background);
+            displayContent += '\n\n[Profile includes avatar and background images]';
+          }
+          
+          setDecryptedContentType('profile');
         } catch {
           // If not valid JSON, display as is
+          setDecryptedContentType('text');
         }
       } else if (inscriptionData.originalType === 'image') {
         try {
+          console.log('Processing decrypted image data...');
           const imageData = JSON.parse(decryptedStr);
-          displayContent = `Image: ${imageData.name}\nType: ${imageData.type}\nSize: ${imageData.size} bytes`;
-        } catch {
-          // If not valid JSON, display as is
+          console.log('Image metadata:', { name: imageData.name, type: imageData.type, size: imageData.size });
+          
+          // If the decrypted data contains the actual image
+          if (imageData.data) {
+            // For large images, handle the base64 data carefully
+            const mimeType = imageData.type || 'image/png';
+            
+            // Check if the data is already a data URL or just base64
+            let imageDataUrl;
+            if (imageData.data.startsWith('data:')) {
+              imageDataUrl = imageData.data;
+            } else {
+              setDecryptionProgress('Reconstructing image...');
+              imageDataUrl = `data:${mimeType};base64,${imageData.data}`;
+            }
+            
+            console.log('Image data URL length:', imageDataUrl.length);
+            
+            // For very large images, validate the base64
+            if (imageDataUrl.length > 1000000) { // > 1MB
+              console.log('Large image detected, size:', (imageDataUrl.length / 1024 / 1024).toFixed(2), 'MB');
+            }
+            
+            setDecryptedImage(imageDataUrl);
+            
+            const sizeInKB = imageData.size ? (imageData.size / 1024).toFixed(2) : 'Unknown';
+            const sizeInMB = imageData.size && imageData.size > 1048576 ? ` (${(imageData.size / 1024 / 1024).toFixed(2)} MB)` : '';
+            
+            displayContent = `Image: ${imageData.name || 'Untitled'}\nType: ${mimeType}\nSize: ${sizeInKB} KB${sizeInMB}`;
+            setDecryptedContentType('image');
+          } else {
+            displayContent = `Image metadata decrypted but no image data found`;
+            setDecryptedContentType('text');
+          }
+        } catch (imgError) {
+          console.error('Error processing image data:', imgError);
+          // If not valid JSON, might be raw image data
+          try {
+            // Check if it might be base64 image data
+            if (decryptedStr.length > 100) {
+              // For large data, check just a sample
+              const sample = decryptedStr.substring(0, 1000);
+              if (/^[A-Za-z0-9+/]+=*$/.test(sample)) {
+                // Assume it's base64 image data
+                setDecryptionProgress('Processing raw image data...');
+                const imageDataUrl = `data:image/png;base64,${decryptedStr}`;
+                setDecryptedImage(imageDataUrl);
+                displayContent = `Decrypted image (raw data)\nSize: ${(decryptedStr.length * 0.75 / 1024).toFixed(2)} KB`;
+                setDecryptedContentType('image');
+              } else {
+                setDecryptedContentType('text');
+              }
+            } else {
+              setDecryptedContentType('text');
+            }
+          } catch {
+            setDecryptedContentType('text');
+          }
         }
+      } else {
+        // Plain text
+        setDecryptedContentType('text');
       }
       
       setDecryptedInscription(displayContent);
       setInscriptionError('');
+      setDecryptionProgress(''); // Clear progress
       
     } catch (error) {
       console.error('Decryption error:', error);
+      setDecryptionProgress(''); // Clear progress on error
       
       // More specific error messages
       if (error instanceof Error) {
@@ -408,7 +604,11 @@ export const Messages: React.FC = () => {
       }
       
       setDecryptedInscription('');
+      setDecryptedImage('');
+      setDecryptedBackgroundImage('');
+      setDecryptedContentType(null);
       setInscriptionMetadata(null);
+      setDecryptionProgress('');
     }
   };
 
@@ -679,18 +879,110 @@ Example:
           </div>
         )}
 
+        {/* Progress indicator */}
+        {decryptionProgress && (
+          <div className="mt-4 p-3 bg-blue-900 bg-opacity-20 border border-blue-700 rounded">
+            <div className="flex items-center">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mr-3"></div>
+              <p className="text-sm text-blue-300">{decryptionProgress}</p>
+            </div>
+          </div>
+        )}
+
         {decryptedInscription && (
           <div className="mt-4 p-4 bg-green-900 bg-opacity-20 border border-green-700 rounded">
             <h4 className="text-sm font-semibold text-green-400 mb-2">✅ Successfully Decrypted!</h4>
+            
+            {/* Display Profile2 background image if available */}
+            {decryptedBackgroundImage && decryptedContentType === 'profile' && (
+              <div className="mb-4">
+                <h5 className="text-sm font-medium text-gray-300 mb-2">Background Image:</h5>
+                <div className="p-3 bg-gray-800 rounded">
+                  <img 
+                    src={decryptedBackgroundImage} 
+                    alt="Profile background" 
+                    className="w-full max-h-64 object-cover rounded"
+                    onError={(e) => {
+                      console.error('Background image failed to load');
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <a
+                    href={decryptedBackgroundImage}
+                    download={`background-${Date.now()}.png`}
+                    className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm"
+                  >
+                    💾 Download Background
+                  </a>
+                </div>
+              </div>
+            )}
+            
+            {/* Display decrypted avatar/main image if available */}
+            {decryptedImage && (
+              <div className="mb-4">
+                <h5 className="text-sm font-medium text-gray-300 mb-2">
+                  {decryptedContentType === 'profile' ? 'Avatar:' : 'Image:'}
+                </h5>
+                <div className="p-3 bg-gray-800 rounded">
+                  <img 
+                    src={decryptedImage} 
+                    alt="Decrypted content" 
+                    className={`max-w-full mx-auto rounded ${
+                      decryptedContentType === 'profile' ? 'max-h-32 w-32 h-32 object-cover rounded-full' : 'max-h-96'
+                    }`}
+                    onError={(e) => {
+                      console.error('Image failed to load');
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <a
+                    href={decryptedImage}
+                    download={`${decryptedContentType === 'profile' ? 'avatar' : 'image'}-${Date.now()}.png`}
+                    className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm"
+                  >
+                    💾 Download {decryptedContentType === 'profile' ? 'Avatar' : 'Image'}
+                  </a>
+                  <button
+                    onClick={() => {
+                      const newWindow = window.open();
+                      if (newWindow) {
+                        newWindow.document.write(`<img src="${decryptedImage}" style="max-width:100%;" />`);
+                      }
+                    }}
+                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm"
+                  >
+                    🔍 View Full Size
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {/* Display text content */}
             <div className="p-3 bg-gray-800 rounded">
               <pre className="text-white whitespace-pre-wrap">{decryptedInscription}</pre>
             </div>
-            <button
-              onClick={() => copyToClipboard(decryptedInscription, 'Decrypted Inscription')}
-              className="mt-3 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm"
-            >
-              📋 Copy Decrypted Content
-            </button>
+            
+            {/* Copy button for text content */}
+            {decryptedContentType !== 'image' && (
+              <button
+                onClick={() => copyToClipboard(decryptedInscription, 'Decrypted Inscription')}
+                className="mt-3 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm"
+              >
+                📋 Copy Decrypted Content
+              </button>
+            )}
+            
+            {/* Note about large files */}
+            {(decryptedImage || decryptedBackgroundImage) && decryptedInscription.includes('MB') && (
+              <div className="mt-3 p-2 bg-yellow-900 bg-opacity-30 rounded text-xs text-yellow-300">
+                <p>⚠️ Large file detected. If the image doesn't display properly, try downloading it instead.</p>
+              </div>
+            )}
           </div>
         )}
 
