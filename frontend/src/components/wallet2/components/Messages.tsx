@@ -8,14 +8,20 @@ export const Messages: React.FC = () => {
   const [decryptedMessage, setDecryptedMessage] = useState<string>('');
   const [messageError, setMessageError] = useState<string>('');
 
-    // 1933 Decoder states
-    const [transactionData, setTransactionData] = useState<string>('');
-    const [extractedHex, setExtractedHex] = useState<string>('');
-    const [decoderError, setDecoderError] = useState<string>('');
-    const [sharedSecretFor1933, setSharedSecretFor1933] = useState<string>('');
-    const [decoded1933Message, setDecoded1933Message] = useState<string>('');
-    const [showDecryptSection, setShowDecryptSection] = useState<boolean>(false);
+  // 1933 Decoder states
+  const [transactionData, setTransactionData] = useState<string>('');
+  const [extractedHex, setExtractedHex] = useState<string>('');
+  const [decoderError, setDecoderError] = useState<string>('');
+  const [sharedSecretFor1933, setSharedSecretFor1933] = useState<string>('');
+  const [decoded1933Message, setDecoded1933Message] = useState<string>('');
+  const [showDecryptSection, setShowDecryptSection] = useState<boolean>(false);
   
+  // Inscription Decoder states
+  const [inscriptionJson, setInscriptionJson] = useState<string>('');
+  const [decryptionKey, setDecryptionKey] = useState<string>('');
+  const [inscriptionError, setInscriptionError] = useState<string>('');
+  const [decryptedInscription, setDecryptedInscription] = useState<string>('');
+  const [inscriptionMetadata, setInscriptionMetadata] = useState<any>(null);
 
   const {
     keyData,
@@ -131,83 +137,280 @@ export const Messages: React.FC = () => {
     }
   };
 
-    // Extract 1933 message from transaction data
-    const extract1933Message = () => {
-      if (!transactionData.trim()) {
-        setDecoderError('Please enter transaction data to analyze');
-        setShowDecryptSection(false);
-        return;
-      }
-  
-      try {
-        // Look for "1933" in the data
-        const prefix = '1933';
-        const prefixIndex = transactionData.indexOf(prefix);
-        
-        if (prefixIndex === -1) {
-          setDecoderError('No "1933" prefix found in the transaction data');
-          setShowDecryptSection(false);
-          setExtractedHex('');
-          return;
-        }
-        
-        // Extract everything after "1933"
-        let remainingData = transactionData.substring(prefixIndex + 4);
-        
-        // Clean up the data - remove any non-hex characters that might follow
-        const hexMatch = remainingData.match(/^[0-9a-fA-F]+/);
-        
-        if (!hexMatch) {
-          setDecoderError('No valid hex data found after "1933" prefix');
-          setShowDecryptSection(false);
-          setExtractedHex('');
-          return;
-        }
-        
-        const extracted = hexMatch[0];
-        setExtractedHex(extracted);
-        setDecoderError('');
-        setShowDecryptSection(true);
-        setDecoded1933Message('');
-        
-      } catch (error) {
-        setDecoderError('Error processing data: ' + (error instanceof Error ? error.message : 'Unknown error'));
+  // Extract 1933 message from transaction data
+  const extract1933Message = () => {
+    if (!transactionData.trim()) {
+      setDecoderError('Please enter transaction data to analyze');
+      setShowDecryptSection(false);
+      return;
+    }
+
+    try {
+      // Look for "1933" in the data
+      const prefix = '1933';
+      const prefixIndex = transactionData.indexOf(prefix);
+      
+      if (prefixIndex === -1) {
+        setDecoderError('No "1933" prefix found in the transaction data');
         setShowDecryptSection(false);
         setExtractedHex('');
-      }
-    };
-  
-    // Decrypt 1933 message with shared secret
-    const decrypt1933Message = () => {
-      if (!sharedSecretFor1933.trim()) {
-        setDecoderError('Please enter your ECDH shared secret');
         return;
       }
       
-      if (!extractedHex) {
-        setDecoderError('No encrypted data to decrypt. Please extract a message first');
+      // Extract everything after "1933"
+      let remainingData = transactionData.substring(prefixIndex + 4);
+      
+      // Clean up the data - remove any non-hex characters that might follow
+      const hexMatch = remainingData.match(/^[0-9a-fA-F]+/);
+      
+      if (!hexMatch) {
+        setDecoderError('No valid hex data found after "1933" prefix');
+        setShowDecryptSection(false);
+        setExtractedHex('');
         return;
       }
       
+      const extracted = hexMatch[0];
+      setExtractedHex(extracted);
+      setDecoderError('');
+      setShowDecryptSection(true);
+      setDecoded1933Message('');
+      
+    } catch (error) {
+      setDecoderError('Error processing data: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      setShowDecryptSection(false);
+      setExtractedHex('');
+    }
+  };
+
+  // Decrypt 1933 message with shared secret
+  const decrypt1933Message = () => {
+    if (!sharedSecretFor1933.trim()) {
+      setDecoderError('Please enter your ECDH shared secret');
+      return;
+    }
+    
+    if (!extractedHex) {
+      setDecoderError('No encrypted data to decrypt. Please extract a message first');
+      return;
+    }
+    
+    try {
+      // Convert shared secret and encrypted data to arrays
+      const sharedSecretArray = Utils.toArray(sharedSecretFor1933.trim(), 'hex');
+      const encryptedArray = Utils.toArray(extractedHex, 'hex');
+      
+      // Create symmetric key from SHA256 of shared secret
+      const symmetricKey = new SymmetricKey(Hash.sha256(sharedSecretArray));
+      
+      // Decrypt the message
+      const decrypted = symmetricKey.decrypt(encryptedArray, 'utf8');
+      
+      setDecoded1933Message(decrypted);
+      setDecoderError('');
+      
+    } catch (error) {
+      setDecoderError('Decryption failed: ' + (error instanceof Error ? error.message : 'The encoded data was not valid'));
+      setDecoded1933Message('');
+    }
+  };
+
+  // Blog Encryption utilities (Web Crypto API)
+  class BlogEncryption {
+    static async deriveEncryptionKey(keySegment: string, salt: string = 'blog-encryption'): Promise<CryptoKey> {
+      const encoder = new TextEncoder();
+      const keyMaterial = await crypto.subtle.importKey(
+        'raw',
+        encoder.encode(keySegment),
+        'PBKDF2',
+        false,
+        ['deriveBits', 'deriveKey']
+      );
+
+      return crypto.subtle.deriveKey(
+        {
+          name: 'PBKDF2',
+          salt: encoder.encode(salt),
+          iterations: 10000,
+          hash: 'SHA-256'
+        },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+      );
+    }
+
+    static async decrypt(encryptedData: ArrayBuffer, key: CryptoKey, iv: Uint8Array): Promise<string> {
       try {
-        // Convert shared secret and encrypted data to arrays
-        const sharedSecretArray = Utils.toArray(sharedSecretFor1933.trim(), 'hex');
-        const encryptedArray = Utils.toArray(extractedHex, 'hex');
+        const decrypted = await crypto.subtle.decrypt(
+          {
+            name: 'AES-GCM',
+            iv: iv
+          },
+          key,
+          encryptedData
+        );
         
-        // Create symmetric key from SHA256 of shared secret
-        const symmetricKey = new SymmetricKey(Hash.sha256(sharedSecretArray));
-        
-        // Decrypt the message
-        const decrypted = symmetricKey.decrypt(encryptedArray, 'utf8');
-        
-        setDecoded1933Message(decrypted);
-        setDecoderError('');
-        
+        const decoder = new TextDecoder();
+        return decoder.decode(decrypted);
       } catch (error) {
-        setDecoderError('Decryption failed: ' + (error instanceof Error ? error.message : 'The encoded data was not valid'));
-        setDecoded1933Message('');
+        console.error('Decryption error details:', error);
+        throw error;
       }
-    };
+    }
+  }
+
+  // Decrypt inscription from JSON transaction
+  const decryptInscription = async () => {
+    if (!inscriptionJson.trim()) {
+      setInscriptionError('Please paste a transaction JSON');
+      return;
+    }
+    
+    if (!decryptionKey.trim()) {
+      setInscriptionError('Please enter a decryption key');
+      return;
+    }
+
+    try {
+      // Parse the JSON transaction
+      const transaction = JSON.parse(inscriptionJson);
+      
+      // Look for the inscription in vout[0].scriptPubKey
+      const scriptHex = transaction.vout?.[0]?.scriptPubKey?.hex;
+      if (!scriptHex) {
+        setInscriptionError('No inscription found in vout[0]');
+        return;
+      }
+
+      console.log('Script hex:', scriptHex);
+
+      // Extract JSON content from hex
+      // Look for application/json marker: 6170706c69636174696f6e2f6a736f6e
+      const jsonMarker = '6170706c69636174696f6e2f6a736f6e';
+      const jsonIndex = scriptHex.indexOf(jsonMarker);
+      
+      if (jsonIndex === -1) {
+        setInscriptionError('No JSON inscription found in transaction');
+        return;
+      }
+
+      // Find the JSON data after the marker
+      let dataStart = jsonIndex + jsonMarker.length;
+      // Skip over protocol bytes (usually 0100014c01bc4cbc or similar)
+      while (dataStart < scriptHex.length && !scriptHex.substring(dataStart, dataStart + 2).match(/7b/)) {
+        dataStart += 2;
+      }
+
+      // Extract the JSON hex - look for the ending pattern
+      let jsonHex = '';
+      for (let i = dataStart; i < scriptHex.length; i += 2) {
+        const byte = scriptHex.substring(i, i + 2);
+        // Check for end markers
+        if (byte === '01' && i + 2 < scriptHex.length && scriptHex.substring(i + 2, i + 4) === '68') {
+          // End marker found
+          break;
+        }
+        // Also check for the '0168' pattern at the very end
+        if (i + 4 >= scriptHex.length && scriptHex.substring(i, i + 4) === '0168') {
+          break;
+        }
+        jsonHex += byte;
+      }
+
+      console.log('Extracted JSON hex:', jsonHex);
+
+      // Convert hex to string
+      let jsonStr = '';
+      for (let i = 0; i < jsonHex.length; i += 2) {
+        jsonStr += String.fromCharCode(parseInt(jsonHex.substr(i, 2), 16));
+      }
+
+      console.log('Extracted JSON string:', jsonStr);
+
+      // Parse the extracted JSON
+      const inscriptionData = JSON.parse(jsonStr);
+      
+      if (!inscriptionData.encrypted || !inscriptionData.data || !inscriptionData.metadata) {
+        setInscriptionError('This inscription is not encrypted or has invalid format');
+        return;
+      }
+
+      setInscriptionMetadata(inscriptionData.metadata);
+      console.log('Inscription metadata:', inscriptionData.metadata);
+
+      // Use the key as provided
+      const keySegment = decryptionKey.trim();
+      console.log('Using key segment:', keySegment, 'Length:', keySegment.length);
+
+      // Derive encryption key
+      const encryptionKey = await BlogEncryption.deriveEncryptionKey(keySegment);
+      
+      // Convert base64 encrypted data to ArrayBuffer
+      const encryptedData = inscriptionData.data;
+      console.log('Encrypted data (base64):', encryptedData);
+      
+      const binaryString = atob(encryptedData);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      
+      // Convert hex IV to Uint8Array
+      const ivHex = inscriptionData.metadata.iv;
+      console.log('IV hex:', ivHex);
+      
+      const iv = new Uint8Array(ivHex.match(/.{2}/g).map((byte: string) => parseInt(byte, 16)));
+      console.log('IV array:', Array.from(iv));
+      
+      // Decrypt the data
+      const decryptedStr = await BlogEncryption.decrypt(bytes.buffer, encryptionKey, iv);
+      
+      // Handle different content types
+      let displayContent = decryptedStr;
+      if (inscriptionData.originalType === 'profile' || inscriptionData.originalType === 'profile2') {
+        try {
+          const profileData = JSON.parse(decryptedStr);
+          displayContent = `Profile: ${profileData.username}\nTitle: ${profileData.title}\nBio: ${profileData.bio}`;
+          if (profileData.timestamp) {
+            displayContent += `\nCreated: ${new Date(profileData.timestamp).toLocaleString()}`;
+          }
+        } catch {
+          // If not valid JSON, display as is
+        }
+      } else if (inscriptionData.originalType === 'image') {
+        try {
+          const imageData = JSON.parse(decryptedStr);
+          displayContent = `Image: ${imageData.name}\nType: ${imageData.type}\nSize: ${imageData.size} bytes`;
+        } catch {
+          // If not valid JSON, display as is
+        }
+      }
+      
+      setDecryptedInscription(displayContent);
+      setInscriptionError('');
+      
+    } catch (error) {
+      console.error('Decryption error:', error);
+      
+      // More specific error messages
+      if (error instanceof Error) {
+        if (error.message.includes('operation-specific')) {
+          setInscriptionError('Decryption failed: Wrong key or corrupted data. Make sure you\'re using the exact key segment that was used for encryption.');
+        } else if (error.message.includes('JSON')) {
+          setInscriptionError('Failed to parse transaction or inscription data. Please check the format.');
+        } else {
+          setInscriptionError('Decryption failed: ' + error.message);
+        }
+      } else {
+        setInscriptionError('Decryption failed: Unknown error');
+      }
+      
+      setDecryptedInscription('');
+      setInscriptionMetadata(null);
+    }
+  };
 
   return (
     <div>
@@ -308,17 +511,14 @@ export const Messages: React.FC = () => {
               <p className="text-white">{decryptedMessage}</p>
             </div>
           )}
-
         </div>
       </div>
 
-
-            {/* 1933 Message Decoder Section */}
+      {/* 1933 Message Decoder Section */}
       <div className="mt-6 p-4 bg-purple-900 bg-opacity-20 rounded-lg border border-purple-700">
         <h2 className="text-xl font-semibold mb-4 text-white">🔍 1933 Message Decoder</h2>
         <p className="text-sm text-gray-400 mb-4">Extract and decrypt messages from BSV transactions</p>
         
-
         <div className="mb-6">
           <h3 className="text-lg font-medium mb-3 text-purple-300">Step 1: Input Transaction Data</h3>
           <div className="space-y-3">
@@ -344,7 +544,6 @@ Example formats:
           </div>
         </div>
 
-
         {extractedHex && (
           <div className="mb-6 p-4 bg-green-900 bg-opacity-20 border border-green-700 rounded">
             <h4 className="text-sm font-semibold text-green-400 mb-2">✅ Successfully Extracted Encrypted Data!</h4>
@@ -367,7 +566,6 @@ Example formats:
             </div>
           </div>
         )}
-
 
         {showDecryptSection && (
           <div className="mb-6">
@@ -397,7 +595,6 @@ Example formats:
           </div>
         )}
 
- 
         {decoded1933Message && (
           <div className="p-4 bg-blue-900 bg-opacity-20 border border-blue-700 rounded">
             <h4 className="text-sm font-semibold text-blue-400 mb-2">✅ Decryption Complete!</h4>
@@ -413,7 +610,6 @@ Example formats:
           </div>
         )}
 
-
         {decoderError && (
           <div className="p-4 bg-red-900 bg-opacity-20 border border-red-700 rounded">
             <p className="text-red-400 text-sm">{decoderError}</p>
@@ -421,7 +617,89 @@ Example formats:
         )}
       </div>
 
+      {/* Blog Inscription Decoder Section */}
+      <div className="mt-6 p-4 bg-indigo-900 bg-opacity-20 rounded-lg border border-indigo-700">
+        <h2 className="text-xl font-semibold mb-4 text-white">🔐 Blog Inscription Decoder</h2>
+        <p className="text-sm text-gray-400 mb-4">Decrypt encrypted blog inscriptions from transaction JSON</p>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium text-gray-300 block mb-2">Transaction JSON</label>
+            <textarea
+              value={inscriptionJson}
+              onChange={(e) => setInscriptionJson(e.target.value)}
+              placeholder='Paste the full transaction JSON here...
 
+Example:
+{
+  "txid": "...",
+  "vout": [
+    {
+      "scriptPubKey": {
+        "hex": "..."
+      }
+    }
+  ]
+}'
+              rows={8}
+              className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-gray-300 block mb-2">Blog Encryption Key</label>
+            <input
+              type="text"
+              value={decryptionKey}
+              onChange={(e) => setDecryptionKey(e.target.value)}
+              placeholder="Enter the blog key (or key segment) used for encryption..."
+              className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-sm"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              For level 3 encryption, you need at least the first 38 characters of the blog key
+            </p>
+          </div>
+
+          <button
+            onClick={decryptInscription}
+            className="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-medium py-2 px-6 rounded-lg transition-colors"
+          >
+            🔓 Decrypt Inscription
+          </button>
+        </div>
+
+        {inscriptionMetadata && (
+          <div className="mt-4 p-3 bg-gray-800 rounded">
+            <h4 className="text-sm font-semibold text-gray-300 mb-2">Encryption Metadata:</h4>
+            <div className="text-xs text-gray-400 space-y-1">
+              <p>• Algorithm: {inscriptionMetadata.algorithm}</p>
+              <p>• Encryption Level: {inscriptionMetadata.level}</p>
+              <p>• IV: {inscriptionMetadata.iv}</p>
+            </div>
+          </div>
+        )}
+
+        {decryptedInscription && (
+          <div className="mt-4 p-4 bg-green-900 bg-opacity-20 border border-green-700 rounded">
+            <h4 className="text-sm font-semibold text-green-400 mb-2">✅ Successfully Decrypted!</h4>
+            <div className="p-3 bg-gray-800 rounded">
+              <pre className="text-white whitespace-pre-wrap">{decryptedInscription}</pre>
+            </div>
+            <button
+              onClick={() => copyToClipboard(decryptedInscription, 'Decrypted Inscription')}
+              className="mt-3 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm"
+            >
+              📋 Copy Decrypted Content
+            </button>
+          </div>
+        )}
+
+        {inscriptionError && (
+          <div className="mt-4 p-4 bg-red-900 bg-opacity-20 border border-red-700 rounded">
+            <p className="text-red-400 text-sm">{inscriptionError}</p>
+          </div>
+        )}
+      </div>
 
     </div>
   );

@@ -1341,6 +1341,8 @@ export const ProfileToken: React.FC = () => {
     </div>
   );
 };
+
+
 // ${network === 'testnet' ? 'test.' : ''}whatsonchain.com/tx/${tx.txid}`}
 //                                 target="_blank"
 //                                 rel="noopener noreferrer"

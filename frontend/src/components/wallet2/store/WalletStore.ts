@@ -27,6 +27,8 @@ interface SavedContact {
   name: string;
   publicKeyHex: string;
   sharedSecret?: string;
+  blogAccessLevel?: 0 | 1 | 2 | 3 | 4 | 5; // Blog access level for this contact
+  blogKeySegment?: string; // The key segment they have
 }
 
 interface UTXO {
@@ -73,6 +75,26 @@ interface ProfileToken {
   version: number;
 }
 
+// Blog Key Interfaces
+interface BlogKeySegments {
+  tier1: string;  // First 1/5 (~13 chars) - Level 1
+  tier2: string;  // First 2/5 (~26 chars) - Level 2
+  tier3: string;  // First 3/5 (~38 chars) - Level 3
+  tier4: string;  // First 4/5 (~51 chars) - Level 4
+  tier5: string;  // Full key (64 chars) - Level 5
+}
+
+interface BlogKeyData {
+  fullKey: string;
+  segments: BlogKeySegments;
+  version: string;
+  generatedAt: number;
+}
+
+interface BlogKeyHistory {
+  current: BlogKeyData | null;
+  previous: BlogKeyData[];
+}
 
 interface WalletState {
   // Core wallet data
@@ -96,10 +118,13 @@ interface WalletState {
   // API
   whatsOnChainApiKey: string;
 
-    // Profile Token State
+  // Profile Token State
   userProfiles: ProfileToken[];
   loadingProfiles: boolean;
   profileError: string | null;
+  
+  // Blog Key State
+  blogKeyHistory: BlogKeyHistory;
   
   // Actions
   setNetwork: (network: Network) => void;
@@ -117,7 +142,7 @@ interface WalletState {
   setLoadingMessages: (loading: boolean) => void;
   setWhatsOnChainApiKey: (key: string) => void;
 
-    // Profile Token Actions
+  // Profile Token Actions
   setUserProfiles: (profiles: ProfileToken[]) => void;
   setLoadingProfiles: (loading: boolean) => void;
   setProfileError: (error: string | null) => void;
@@ -125,7 +150,31 @@ interface WalletState {
   addProfileToken: (profile: ProfileToken) => void;
   clearProfileTokens: () => void;
 
+  // Blog Key Actions
+  setBlogKey: (blogKeyData: BlogKeyData) => void;
+  generateNewBlogKey: () => BlogKeyData;
+  rotateBlogKey: () => void;
+  updateContactBlogAccess: (contactId: string, accessLevel: 0 | 1 | 2 | 3 | 4 | 5) => void;
+  getKeySegmentForLevel: (level: 0 | 1 | 2 | 3 | 4 | 5) => string | null;
+  importBlogKey: (hexKey: string) => void;
 }
+
+// Helper function to segment blog key
+const segmentBlogKey = (fullKey: string): BlogKeySegments => {
+  const keyLength = fullKey.length; // Should be 64
+  const tier1Length = Math.floor(keyLength / 5);      // ~13 chars
+  const tier2Length = Math.floor(keyLength * 2 / 5);  // ~26 chars
+  const tier3Length = Math.floor(keyLength * 3 / 5);  // ~38 chars
+  const tier4Length = Math.floor(keyLength * 4 / 5);  // ~51 chars
+  
+  return {
+    tier1: fullKey.substring(0, tier1Length),
+    tier2: fullKey.substring(0, tier2Length),
+    tier3: fullKey.substring(0, tier3Length),
+    tier4: fullKey.substring(0, tier4Length),
+    tier5: fullKey // Full key
+  };
+};
 
 export const useWalletStore = create<WalletState>((set, get) => ({
   // Initial state
@@ -156,10 +205,16 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   loadingMessages: false,
   whatsOnChainApiKey: '',
 
-    // Profile Token Initial State
+  // Profile Token Initial State
   userProfiles: [],
   loadingProfiles: false,
   profileError: null,
+  
+  // Blog Key Initial State
+  blogKeyHistory: {
+    current: null,
+    previous: []
+  },
   
   // Actions
   setNetwork: (network) => set({ network }),
@@ -200,7 +255,6 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     localStorage.setItem('whatsOnChainApiKey', key);
     set({ whatsOnChainApiKey: key });
   },
-
 
   // Profile Token Actions
   setUserProfiles: (profiles) => set({ userProfiles: profiles }),
@@ -244,14 +298,129 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       userProfiles: [],
       profileError: null 
     });
-  }
+  },
 
+  // Blog Key Actions
+  setBlogKey: (blogKeyData) => {
+    const { blogKeyHistory } = get();
+    const newHistory = {
+      current: blogKeyData,
+      previous: blogKeyHistory.current 
+        ? [...blogKeyHistory.previous, blogKeyHistory.current]
+        : blogKeyHistory.previous
+    };
+    set({ blogKeyHistory: newHistory });
+    
+    // Save to localStorage for persistence
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('blogKeyHistory', JSON.stringify(newHistory));
+    }
+  },
+
+  generateNewBlogKey: () => {
+    // Generate 32 random bytes (256 bits)
+    const randomBytes = new Uint8Array(32);
+    if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+      window.crypto.getRandomValues(randomBytes);
+    } else {
+      // Fallback for development
+      for (let i = 0; i < 32; i++) {
+        randomBytes[i] = Math.floor(Math.random() * 256);
+      }
+    }
+    
+    // Convert to hex string (64 characters)
+    const fullKey = Array.from(randomBytes)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    
+    const segments = segmentBlogKey(fullKey);
+    
+    const newBlogKeyData: BlogKeyData = {
+      fullKey,
+      segments,
+      version: `v${get().blogKeyHistory.previous.length + 2}`,
+      generatedAt: Date.now()
+    };
+    
+    get().setBlogKey(newBlogKeyData);
+    return newBlogKeyData;
+  },
+
+  rotateBlogKey: () => {
+    const newKey = get().generateNewBlogKey();
+    // You can add logic here to notify contacts about key rotation
+    return newKey;
+  },
+
+  updateContactBlogAccess: (contactId, accessLevel) => {
+    const { contacts, blogKeyHistory } = get();
+    if (!blogKeyHistory.current) return;
+    
+    const keySegment = get().getKeySegmentForLevel(accessLevel);
+    
+    const updatedContacts = contacts.map(contact => {
+      if (contact.id === contactId) {
+        return {
+          ...contact,
+          blogAccessLevel: accessLevel,
+          blogKeySegment: keySegment
+        };
+      }
+      return contact;
+    });
+    
+    set({ contacts: updatedContacts });
+  },
+
+  getKeySegmentForLevel: (level) => {
+    const { blogKeyHistory } = get();
+    if (!blogKeyHistory.current) return null;
+    
+    const segments = blogKeyHistory.current.segments;
+    switch (level) {
+      case 0: return null; // Public
+      case 1: return segments.tier1;
+      case 2: return segments.tier2;
+      case 3: return segments.tier3;
+      case 4: return segments.tier4;
+      case 5: return segments.tier5;
+      default: return null;
+    }
+  },
+
+  importBlogKey: (hexKey) => {
+    if (!/^[0-9a-fA-F]{64}$/.test(hexKey)) {
+      throw new Error('Invalid blog key format');
+    }
+    
+    const segments = segmentBlogKey(hexKey);
+    const blogKeyData: BlogKeyData = {
+      fullKey: hexKey,
+      segments,
+      version: 'v1',
+      generatedAt: Date.now()
+    };
+    
+    get().setBlogKey(blogKeyData);
+  }
 }));
 
-// Initialize API key from localStorage
+// Initialize from localStorage
 if (typeof window !== 'undefined') {
   const savedApiKey = localStorage.getItem('whatsOnChainApiKey');
   if (savedApiKey) {
     useWalletStore.getState().setWhatsOnChainApiKey(savedApiKey);
+  }
+  
+  // Load blog key history from localStorage
+  const savedBlogKeyHistory = localStorage.getItem('blogKeyHistory');
+  if (savedBlogKeyHistory) {
+    try {
+      const history = JSON.parse(savedBlogKeyHistory);
+      useWalletStore.setState({ blogKeyHistory: history });
+    } catch (e) {
+      console.error('Failed to load blog key history from localStorage');
+    }
   }
 }
