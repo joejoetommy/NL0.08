@@ -5,8 +5,13 @@
 //   jesus is king    lvl 4 8eb4cafed6b5a3e0a893441e3cc17146af8d32c6ee96498baa9 
 //   jesus is king    lvl 5 8eb4cafed6b5a3e0a893441e3cc17146af8d32c6ee96498baa986dbaa763adaa 
 // image = Ordinal created (Encrypted: Level 1 - Friends)! TXID: a875879778801006ed88514e470f405808a2a5e4c4ab1d1fd89bc18fa8acd71a   https://test.whatsonchain.com/tx/a875879778801006ed88514e470f405808a2a5e4c4ab1d1fd89bc18fa8acd71a
-// 3rd key dff16672174569c206d9303c8ad427c4383addbcaa31991ea2a9f2cd2861def1   n1VtTgFqT6Kra6iY93YH8SA8ZqxvNC21Bj  EncryptKey= abce8138a4d0c920f63ba3983e6e9d9562d81ac502af5b65d645bef1396c9f5d   TXID= 
+
+
+// 3rd key dff16672174569c206d9303c8ad427c4383addbcaa31991ea2a9f2cd2861def1   n1VtTgFqT6Kra6iY93YH8SA8ZqxvNC21Bj  
+// EncryptKey= abce8138a4d0c920f63ba3983e6e9d9562d81ac502af5b65d645bef1396c9f5d   TXID= 
 // 
+
+
 // 4th key   671d6de03a9dbee6c691b4cb5afdf219f3bfb3b70afef3e2ea8ee76f0196bd53  mw62mij7PZzdxhMHPx85EEp3XbwbuLGp9H EncryptKey=   TXID= 
 // 5th key   ef519bf189c89954dfe580e4bb22980d075157ed97a2751c5542ece55d76a44b    mo7CXYyBpNYVsRHY1LZhQiZ9nQr9Nws7dH EncryptKey=   TXID= 
 // 6th key 7e20f00bf555d908f64dc1326b7f20c5c4f1201f14d79b8a310e056f97599f67   mtu8w1L1eD35n625DpY4pngvD6XdM1kMZT EncryptKey=   TXID= 
@@ -25,16 +30,19 @@
 //   "message": "remember to go to him, all who are heavy laden and you will find rest"
 // }
 
-///////////////////////////////////
+///////////////////////////////////  188bd21d1311362c
 
 
 Tier 5          8eb4cafed6b5a3e0a893441e3cc17146af8d32c6ee96498baa986dbaa763adaa
 Tier 4          8eb4cafed6b5a3e0a893441e3cc17146af8d32c6ee96498baa9
 Tier 3          8eb4cafed6b5a3e0a893441e3cc17146af8d32
 Tier 2          8eb4cafed6b5a3e0a893441e3
-    Tier 1          8eb4cafed6b5
+Tier 1          8eb4cafed6b5
 
 
+
+HjHw1tEf1t7rGRydPEGBybxZrmKpodGU7P7R6GR5wSLFp3JGvHytqZDWbMs5A15HSJYv
+01PIxHhZDyr6ws6Nt6d8im7WPhO5zqbS
 
 
 

@@ -58,13 +58,14 @@ interface InscriptionData {
   size: number;
   origin: string;
   scriptHex?: string;
-  encryptionLevel?: EncryptionLevel;
-  encrypted?: boolean;
+  encryptionLevel?: EncryptionLevel; // Add encryption level
+  encrypted?: boolean; // Add encrypted flag
 }
 
 // Add encryption utilities using Web Crypto API
 class BlogEncryption {
   static async deriveEncryptionKey(keySegment: string, salt: string = 'blog-encryption'): Promise<CryptoKey> {
+    // Convert key segment to Uint8Array
     const encoder = new TextEncoder();
     const keyMaterial = await crypto.subtle.importKey(
       'raw',
@@ -74,6 +75,7 @@ class BlogEncryption {
       ['deriveBits', 'deriveKey']
     );
 
+    // Derive key using PBKDF2
     return crypto.subtle.deriveKey(
       {
         name: 'PBKDF2',
@@ -90,7 +92,7 @@ class BlogEncryption {
 
   static async encrypt(data: string, key: CryptoKey): Promise<{ encrypted: ArrayBuffer; iv: Uint8Array }> {
     const encoder = new TextEncoder();
-    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const iv = crypto.getRandomValues(new Uint8Array(12)); // GCM recommends 12 bytes
     
     const encrypted = await crypto.subtle.encrypt(
       {
@@ -124,16 +126,23 @@ class BlogEncryption {
     keySegment: string | null
   ): Promise<{ encryptedData: string; metadata: any }> {
     if (encryptionLevel === 0 || !keySegment) {
+      // No encryption for level 0
       return {
         encryptedData: typeof data === 'string' ? data : JSON.stringify(data),
         metadata: { encrypted: false, level: 0 }
       };
     }
 
+    // Serialize data if needed
     const dataStr = typeof data === 'string' ? data : JSON.stringify(data);
+    
+    // Derive encryption key
     const encryptionKey = await this.deriveEncryptionKey(keySegment);
+    
+    // Encrypt the data
     const { encrypted, iv } = await this.encrypt(dataStr, encryptionKey);
     
+    // Create metadata
     const metadata = {
       encrypted: true,
       level: encryptionLevel,
@@ -141,22 +150,11 @@ class BlogEncryption {
       algorithm: 'aes-256-gcm'
     };
 
-    // Convert encrypted ArrayBuffer to base64 in chunks to avoid call stack issues
+    // Convert encrypted ArrayBuffer to base64
     const encryptedArray = new Uint8Array(encrypted);
-    let encryptedBase64 = '';
-    
-    // Process in 64KB chunks
-    const chunkSize = 65536;
-    for (let i = 0; i < encryptedArray.length; i += chunkSize) {
-      const chunk = encryptedArray.slice(i, i + chunkSize);
-      // Convert chunk to string without using spread operator
-      let chunkString = '';
-      for (let j = 0; j < chunk.length; j++) {
-        chunkString += String.fromCharCode(chunk[j]);
-      }
-      encryptedBase64 += btoa(chunkString);
-    }
+    const encryptedBase64 = btoa(String.fromCharCode(...encryptedArray));
 
+    // Return encrypted data as base64
     return {
       encryptedData: encryptedBase64,
       metadata
@@ -193,9 +191,6 @@ export const ProfileToken: React.FC = () => {
   // Add encryption-related state
   const [encryptionLevel, setEncryptionLevel] = useState<EncryptionLevel>(0);
   const [showEncryptionOptions, setShowEncryptionOptions] = useState(false);
-  const [encryptedData, setEncryptedData] = useState<string>('');
-  const [encryptedSize, setEncryptedSize] = useState<number>(0);
-  const [isEncrypting, setIsEncrypting] = useState(false);
 
   // Add new state variables for viewing inscriptions
   const [activeTab, setActiveTab] = useState<'create' | 'view'>('create');
@@ -239,161 +234,6 @@ export const ProfileToken: React.FC = () => {
     return colors[level];
   };
 
-  // Auto-encrypt data when inputs or encryption level change
-  useEffect(() => {
-    if (encryptionLevel > 0 && blogKeyHistory.current) {
-      encryptCurrentData();
-    } else {
-      setEncryptedData('');
-      setEncryptedSize(0);
-    }
-  }, [textData, imageFile, profileData, profileImageFile, backgroundImageFile, encryptionLevel, inscriptionType]);
-
-  // Encrypt current data based on inscription type
-  const encryptCurrentData = async () => {
-    if (!blogKeyHistory.current || encryptionLevel === 0) {
-      setEncryptedData('');
-      setEncryptedSize(0);
-      return;
-    }
-
-    setIsEncrypting(true);
-    
-    try {
-      const keySegment = getKeySegmentForLevel(encryptionLevel);
-      if (!keySegment) {
-        throw new Error('No key segment available for encryption level');
-      }
-
-      let dataToEncrypt: any;
-      let contentType = '';
-
-      if (inscriptionType === 'text') {
-        if (!textData) {
-          setEncryptedData('');
-          setEncryptedSize(0);
-          setIsEncrypting(false);
-          return;
-        }
-        dataToEncrypt = textData;
-        contentType = 'text';
-      } 
-      else if (inscriptionType === 'image' && imageFile) {
-        // Show status for large files
-        if (imageFile.size > 1000000) {
-          setStatus({ 
-            type: 'info', 
-            message: `Compressing ${(imageFile.size / 1024 / 1024).toFixed(1)}MB image for encryption...` 
-          });
-        }
-        
-        const base64Data = await imageToBase64(imageFile);
-        
-        // Check if compressed size is still reasonable
-        const compressedSize = base64Data.length * 0.75; // Approximate binary size
-        if (compressedSize > 4500000) { // ~4.5MB binary
-          throw new Error(`Image still too large after compression: ${(compressedSize / 1024 / 1024).toFixed(1)}MB. Please use a smaller image.`);
-        }
-        
-        dataToEncrypt = {
-          name: imageFile.name,
-          type: imageFile.type,
-          size: imageFile.size,
-          data: base64Data
-        };
-        contentType = 'image';
-      }
-      else if (inscriptionType === 'profile' || inscriptionType === 'profile2') {
-        if (!profileData.username && !profileData.title && !profileData.bio) {
-          setEncryptedData('');
-          setEncryptedSize(0);
-          setIsEncrypting(false);
-          return;
-        }
-
-        const profileDataToSave: any = {
-          p: inscriptionType,
-          username: profileData.username || 'Anonymous',
-          title: profileData.title || 'BSV User',
-          bio: profileData.bio || 'On-chain profile',
-          timestamp: Date.now()
-        };
-        
-        if (profileImageFile) {
-          if (profileImageFile.size > 1000000) {
-            setStatus({ 
-              type: 'info', 
-              message: 'Compressing profile image...' 
-            });
-          }
-          const base64Data = await imageToBase64(profileImageFile, 600); // More aggressive compression for profiles
-          profileDataToSave.avatar = `data:${profileImageFile.type};base64,${base64Data}`;
-        }
-        
-        if (inscriptionType === 'profile2' && backgroundImageFile) {
-          if (backgroundImageFile.size > 1000000) {
-            setStatus({ 
-              type: 'info', 
-              message: 'Compressing background image...' 
-            });
-          }
-          const base64Data = await imageToBase64(backgroundImageFile, 800); // More aggressive compression
-          profileDataToSave.background = `data:${backgroundImageFile.type};base64,${base64Data}`;
-        }
-        
-        dataToEncrypt = profileDataToSave;
-        contentType = inscriptionType;
-      } else {
-        setEncryptedData('');
-        setEncryptedSize(0);
-        setIsEncrypting(false);
-        return;
-      }
-
-      // Clear compression status
-      if (status.type === 'info' && status.message.includes('Compressing')) {
-        setStatus({ type: null, message: '' });
-      }
-
-      // Encrypt the data
-      const { encryptedData, metadata } = await BlogEncryption.prepareEncryptedInscription(
-        dataToEncrypt,
-        encryptionLevel,
-        keySegment
-      );
-      
-      // Create the wrapper
-      const wrapper = {
-        encrypted: true,
-        originalType: contentType,
-        data: encryptedData,
-        metadata
-      };
-      
-      const encryptedJson = JSON.stringify(wrapper);
-      const encryptedSizeBytes = new TextEncoder().encode(encryptedJson).length;
-      
-      // Check final size
-      if (encryptedSizeBytes > 5242880) { // 5MB limit
-        throw new Error(`Encrypted data too large: ${(encryptedSizeBytes / 1024 / 1024).toFixed(1)}MB. Maximum is 5MB.`);
-      }
-      
-      setEncryptedData(encryptedJson);
-      setEncryptedSize(encryptedSizeBytes);
-      
-    } catch (error) {
-      console.error('Encryption error:', error);
-      setStatus({ 
-        type: 'error', 
-        message: 'Failed to encrypt data: ' + (error instanceof Error ? error.message : 'Unknown error')
-      });
-      setEncryptedData('');
-      setEncryptedSize(0);
-    } finally {
-      setIsEncrypting(false);
-    }
-  };
-
   // Fetch current fee rate from the network
   const fetchCurrentFeeRate = async () => {
     try {
@@ -435,7 +275,10 @@ export const ProfileToken: React.FC = () => {
     const outputSize = numOutputs * 34;
     const inscriptionOverhead = 10;
     
-    const totalSizeBytes = baseSize + inputSize + outputSize + inscriptionOverhead + dataSize;
+    // Add overhead for encryption metadata if encrypted
+    const encryptionOverhead = encryptionLevel > 0 ? 100 : 0;
+    
+    const totalSizeBytes = baseSize + inputSize + outputSize + inscriptionOverhead + dataSize + encryptionOverhead;
     const totalSizeKB = totalSizeBytes / 1000;
     
     const fee = Math.max(1, Math.ceil(totalSizeKB * feeRatePerKB));
@@ -445,6 +288,7 @@ export const ProfileToken: React.FC = () => {
     console.log(`- Inputs (${numInputs}): ${inputSize} bytes`);
     console.log(`- Outputs (${numOutputs}): ${outputSize} bytes`);
     console.log(`- Inscription data: ${dataSize} bytes`);
+    console.log(`- Encryption overhead: ${encryptionOverhead} bytes`);
     console.log(`- Total size: ${totalSizeBytes} bytes (${totalSizeKB.toFixed(3)} KB)`);
     console.log(`- Fee rate: ${feeRatePerKB} sat/KB`);
     console.log(`- Total fee: ${fee} sats`);
@@ -477,6 +321,7 @@ export const ProfileToken: React.FC = () => {
         headers['woc-api-key'] = whatsOnChainApiKey;
       }
 
+      // Get transaction history
       const historyUrl = `https://api.whatsonchain.com/v1/bsv/${network === 'testnet' ? 'test' : 'main'}/address/${keyData.address}/history`;
       console.log('Fetching from:', historyUrl);
       
@@ -491,8 +336,10 @@ export const ProfileToken: React.FC = () => {
 
       const foundInscriptions: InscriptionData[] = [];
       
+      // Check recent transactions for inscriptions
       for (const tx of history.slice(0, 30)) {
         try {
+          // Get full transaction data
           const txResponse = await fetch(
             `https://api.whatsonchain.com/v1/bsv/${network === 'testnet' ? 'test' : 'main'}/tx/hash/${tx.tx_hash}`,
             { headers }
@@ -502,40 +349,49 @@ export const ProfileToken: React.FC = () => {
 
           const txData = await txResponse.json();
           
+          // Look for 1 satoshi outputs (inscriptions)
           for (let i = 0; i < txData.vout.length; i++) {
             const vout = txData.vout[i];
             
+            // Check if this is a 1 satoshi output
             if (vout.value === 0.00000001) {
               console.log(`Found 1 sat output in ${tx.tx_hash}:${i}`);
               
+              // Get the script hex
               const scriptHex = vout.scriptPubKey?.hex || '';
               
+              // Determine inscription type from script
               let inscriptionType: 'text' | 'image' | 'profile' | 'profile2' | 'unknown' = 'unknown';
               let content: any = null;
               let encrypted = false;
               let encryptionLevel = 0;
               
+              // Check for content patterns in hex
               if (scriptHex.includes('746578742f706c61696e')) { // "text/plain"
                 inscriptionType = 'text';
+                // Try to extract text content
                 try {
                   const textMatch = scriptHex.match(/746578742f706c61696e[0-9a-f]*?00([0-9a-f]+?)68/);
                   if (textMatch && textMatch[1]) {
+                    // Convert hex to string without using Buffer
                     const hexStr = textMatch[1];
                     let extractedContent = '';
                     for (let i = 0; i < hexStr.length; i += 2) {
                       extractedContent += String.fromCharCode(parseInt(hexStr.substr(i, 2), 16));
                     }
                     
+                    // Check if it's encrypted JSON
                     try {
                       const parsed = JSON.parse(extractedContent);
                       if (parsed.encrypted && parsed.data) {
                         encrypted = true;
                         encryptionLevel = parsed.metadata?.level || 0;
-                        content = parsed;
+                        content = parsed; // Store the encrypted wrapper
                       } else {
                         content = extractedContent;
                       }
                     } catch {
+                      // Not JSON, treat as plain text
                       content = extractedContent;
                     }
                   }
@@ -543,9 +399,11 @@ export const ProfileToken: React.FC = () => {
                   console.error('Error extracting text:', e);
                 }
               } else if (scriptHex.includes('6170706c69636174696f6e2f6a736f6e')) { // "application/json"
+                // Try to extract JSON content
                 try {
                   const jsonMatch = scriptHex.match(/6170706c69636174696f6e2f6a736f6e[0-9a-f]*?00([0-9a-f]+?)68/);
                   if (jsonMatch && jsonMatch[1]) {
+                    // Convert hex to string without using Buffer
                     const hexStr = jsonMatch[1];
                     let jsonStr = '';
                     for (let i = 0; i < hexStr.length; i += 2) {
@@ -554,11 +412,13 @@ export const ProfileToken: React.FC = () => {
                     try {
                       content = JSON.parse(jsonStr);
                       
+                      // Check for encryption
                       if (content.encrypted && content.data) {
                         encrypted = true;
                         encryptionLevel = content.metadata?.level || 0;
                       }
                       
+                      // Determine profile type
                       if (content.p === 'profile2' || (content.encrypted && content.originalType === 'profile2')) {
                         inscriptionType = 'profile2';
                       } else if (content.p === 'profile' || (content.encrypted && content.originalType === 'profile')) {
@@ -577,6 +437,8 @@ export const ProfileToken: React.FC = () => {
                 }
               } else if (scriptHex.includes('696d6167652f')) { // "image/"
                 inscriptionType = 'image';
+                // Check for encrypted image metadata
+                // Image data is too complex to extract here, will handle in detail view
               }
               
               foundInscriptions.push({
@@ -616,14 +478,18 @@ export const ProfileToken: React.FC = () => {
     setSelectedInscription(selectedInscription);
     
     try {
+      // If we already have content, use it
       if (selectedInscription.content) {
+        // Check if it's encrypted
         if (selectedInscription.encrypted && selectedInscription.content.encrypted) {
+          // Try to decrypt if we have the appropriate key
           const keySegment = getKeySegmentForLevel(selectedInscription.encryptionLevel || 0);
           
           if (keySegment && selectedInscription.content.data && selectedInscription.content.metadata) {
             try {
               const encryptionKey = await BlogEncryption.deriveEncryptionKey(keySegment);
               
+              // Convert base64 to ArrayBuffer
               const encryptedData = selectedInscription.content.data;
               const binaryString = atob(encryptedData);
               const bytes = new Uint8Array(binaryString.length);
@@ -631,15 +497,18 @@ export const ProfileToken: React.FC = () => {
                 bytes[i] = binaryString.charCodeAt(i);
               }
               
+              // Convert hex IV to Uint8Array
               const ivHex = selectedInscription.content.metadata.iv;
               const iv = new Uint8Array(ivHex.match(/.{2}/g).map((byte: string) => parseInt(byte, 16)));
               
               const decryptedStr = await BlogEncryption.decrypt(bytes.buffer, encryptionKey, iv);
               
+              // Try to parse as JSON
               try {
                 const parsedContent = JSON.parse(decryptedStr);
                 setInscriptionContent(parsedContent);
               } catch {
+                // Not JSON, use as string
                 setInscriptionContent(decryptedStr);
               }
             } catch (decryptError) {
@@ -662,8 +531,10 @@ export const ProfileToken: React.FC = () => {
         return;
       }
       
+      // For images or complex content, try to extract from script hex
       if (selectedInscription.scriptHex) {
         if (selectedInscription.inscriptionType === 'image') {
+          // Show a message for images
           setInscriptionContent({
             type: 'image',
             message: 'Image inscription - view transaction for full data',
@@ -671,8 +542,10 @@ export const ProfileToken: React.FC = () => {
             encrypted: selectedInscription.encrypted
           });
         } else if (selectedInscription.inscriptionType === 'text') {
+          // Try to extract text
           const textMatch = selectedInscription.scriptHex.match(/746578742f706c61696e[0-9a-f]*?00([0-9a-f]+?)68/);
           if (textMatch && textMatch[1]) {
+            // Convert hex to string without using Buffer
             const hexStr = textMatch[1];
             let text = '';
             for (let i = 0; i < hexStr.length; i += 2) {
@@ -733,7 +606,8 @@ export const ProfileToken: React.FC = () => {
     }
 
     const base64Size = Math.ceil(file.size * 1.37);
-    const { estimatedSize, fee } = calculateTransactionFee(1, 2, base64Size);
+    const encryptionOverhead = encryptionLevel > 0 ? 100 : 0;
+    const { estimatedSize, fee } = calculateTransactionFee(1, 2, base64Size + encryptionOverhead);
     
     setStatus({ 
       type: 'info', 
@@ -803,7 +677,7 @@ export const ProfileToken: React.FC = () => {
       const reader = new FileReader();
       
       // For smaller files, just convert directly
-      if (file.size < 300000 && !maxWidth) { // < 300KB
+      if (file.size < 500000 && !maxWidth) { // < 500KB
         reader.onload = () => {
           const base64 = reader.result as string;
           const base64Data = base64.split(',')[1];
@@ -825,30 +699,17 @@ export const ProfileToken: React.FC = () => {
             return;
           }
           
-          // Calculate new dimensions based on file size
+          // Calculate new dimensions
           let width = img.width;
           let height = img.height;
-          
-          // More aggressive compression for larger files
-          let maxDimension = maxWidth;
-          if (!maxDimension) {
-            if (file.size > 4000000) { // > 4MB
-              maxDimension = 800;
-            } else if (file.size > 2000000) { // > 2MB
-              maxDimension = 1000;
-            } else if (file.size > 1000000) { // > 1MB
-              maxDimension = 1200;
-            } else {
-              maxDimension = 1600;
-            }
-          }
+          const maxDimension = maxWidth || 1200; // Default max width
           
           if (width > maxDimension || height > maxDimension) {
             if (width > height) {
-              height = Math.round((height / width) * maxDimension);
+              height = (height / width) * maxDimension;
               width = maxDimension;
             } else {
-              width = Math.round((width / height) * maxDimension);
+              width = (width / height) * maxDimension;
               height = maxDimension;
             }
           }
@@ -856,46 +717,21 @@ export const ProfileToken: React.FC = () => {
           canvas.width = width;
           canvas.height = height;
           
-          // Enable image smoothing for better quality
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high';
-          
           // Draw and compress
           ctx.drawImage(img, 0, 0, width, height);
           
           // Try different quality levels to get under size limit
-          let quality = 0.92;
-          let targetSize = 1500000; // Target ~1.5MB base64 (about 1.1MB binary)
-          
-          // For encryption, we need smaller sizes due to overhead
-          if (maxWidth || file.size > 2000000) {
-            targetSize = 1000000; // Target ~1MB base64 for encrypted images
-            quality = 0.85;
-          }
-          
+          let quality = 0.9;
           let dataUrl = canvas.toDataURL(file.type || 'image/jpeg', quality);
           
           // Reduce quality until size is acceptable
-          while (dataUrl.length > targetSize && quality > 0.3) {
-            quality -= 0.05;
+          while (dataUrl.length > 2000000 && quality > 0.1) { // ~1.5MB base64
+            quality -= 0.1;
             dataUrl = canvas.toDataURL('image/jpeg', quality);
           }
           
-          // If still too large, reduce dimensions
-          if (dataUrl.length > targetSize && !maxWidth) {
-            const scaleFactor = Math.sqrt(targetSize / dataUrl.length);
-            canvas.width = Math.round(width * scaleFactor);
-            canvas.height = Math.round(height * scaleFactor);
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-          }
-          
           const base64Data = dataUrl.split(',')[1];
-          const compressedSizeKB = (base64Data.length * 0.75 / 1024).toFixed(0);
-          const originalSizeKB = (file.size / 1024).toFixed(0);
-          
-          console.log(`Image compressed: ${originalSizeKB}KB → ${compressedSizeKB}KB (${width}x${height}, quality ${quality.toFixed(2)})`);
-          
+          console.log(`Image compressed: original ${(file.size / 1024).toFixed(0)}KB, compressed ${(base64Data.length * 0.75 / 1024).toFixed(0)}KB, quality ${quality.toFixed(1)}`);
           resolve(base64Data);
         };
         img.onerror = () => reject(new Error('Failed to load image'));
@@ -908,50 +744,64 @@ export const ProfileToken: React.FC = () => {
 
   // Create the inscription script with proper handling for large data
   const createInscriptionScript = (pubKeyHash: number[], contentType: string, data: Uint8Array): Script => {
+    // Build the script manually as hex to avoid SDK limitations
     let scriptHex = '';
     
     try {
-      scriptHex += '76a914';
+      // P2PKH part: OP_DUP OP_HASH160 <pubKeyHash> OP_EQUALVERIFY OP_CHECKSIG
+      scriptHex += '76a914'; // OP_DUP OP_HASH160 PUSH(20)
       scriptHex += pubKeyHash.map(b => b.toString(16).padStart(2, '0')).join('');
-      scriptHex += '88ac';
+      scriptHex += '88ac'; // OP_EQUALVERIFY OP_CHECKSIG
       
-      scriptHex += '0063';
-      scriptHex += '03';
-      scriptHex += '6f7264';
-      scriptHex += '51';
+      // Inscription envelope: OP_FALSE OP_IF
+      scriptHex += '0063'; // OP_FALSE OP_IF
       
+      // Ordinal protocol identifier: PUSH(3) "ord"
+      scriptHex += '03'; // PUSH 3 bytes
+      scriptHex += '6f7264'; // "ord"
+      
+      // Separator: OP_1
+      scriptHex += '51'; // OP_1
+      
+      // Content type
       const ctBytes = Utils.toArray(contentType, 'utf8');
       const ctLength = ctBytes.length;
       
       if (ctLength <= 75) {
         scriptHex += ctLength.toString(16).padStart(2, '0');
       } else if (ctLength <= 255) {
-        scriptHex += '4c';
+        scriptHex += '4c'; // OP_PUSHDATA1
         scriptHex += ctLength.toString(16).padStart(2, '0');
       } else {
-        scriptHex += '4d';
+        scriptHex += '4d'; // OP_PUSHDATA2
         scriptHex += (ctLength & 0xff).toString(16).padStart(2, '0');
         scriptHex += ((ctLength >> 8) & 0xff).toString(16).padStart(2, '0');
       }
       scriptHex += ctBytes.map(b => b.toString(16).padStart(2, '0')).join('');
       
-      scriptHex += '00';
+      // Separator: OP_0
+      scriptHex += '00'; // OP_0
       
+      // Data with proper length encoding
       const dataArray = Array.from(data);
       const dataLength = dataArray.length;
       
       console.log(`Encoding ${dataLength} bytes of inscription data`);
       
       if (dataLength <= 75) {
+        // Direct push
         scriptHex += dataLength.toString(16).padStart(2, '0');
       } else if (dataLength <= 255) {
+        // OP_PUSHDATA1
         scriptHex += '4c';
         scriptHex += dataLength.toString(16).padStart(2, '0');
       } else if (dataLength <= 65535) {
+        // OP_PUSHDATA2
         scriptHex += '4d';
         scriptHex += (dataLength & 0xff).toString(16).padStart(2, '0');
         scriptHex += ((dataLength >> 8) & 0xff).toString(16).padStart(2, '0');
       } else {
+        // OP_PUSHDATA4
         scriptHex += '4e';
         scriptHex += (dataLength & 0xff).toString(16).padStart(2, '0');
         scriptHex += ((dataLength >> 8) & 0xff).toString(16).padStart(2, '0');
@@ -959,14 +809,17 @@ export const ProfileToken: React.FC = () => {
         scriptHex += ((dataLength >> 24) & 0xff).toString(16).padStart(2, '0');
       }
       
-      const chunkSize = 10000;
+      // Convert data array to hex string in chunks to avoid call stack issues
+      const chunkSize = 10000; // Process 10KB at a time
       for (let i = 0; i < dataArray.length; i += chunkSize) {
         const chunk = dataArray.slice(i, Math.min(i + chunkSize, dataArray.length));
         scriptHex += chunk.map(b => b.toString(16).padStart(2, '0')).join('');
       }
       
-      scriptHex += '68';
+      // End inscription envelope: OP_ENDIF
+      scriptHex += '68'; // OP_ENDIF
       
+      // Create Script from hex
       const script = Script.fromHex(scriptHex);
       
       console.log(`Created inscription script: ${(scriptHex.length / 2 / 1024).toFixed(2)}KB`);
@@ -1021,12 +874,6 @@ export const ProfileToken: React.FC = () => {
       return;
     }
 
-    // If encrypted, use the encrypted data
-    if (encryptionLevel > 0 && !encryptedData) {
-      setStatus({ type: 'error', message: 'No encrypted data available. Please wait for encryption to complete.' });
-      return;
-    }
-
     const timeSinceLastTx = Date.now() - lastTransactionTime;
     if (timeSinceLastTx < 5000) {
       setStatus({ 
@@ -1042,55 +889,184 @@ export const ProfileToken: React.FC = () => {
     try {
       let contentType: string;
       let inscriptionData: Uint8Array;
+      let originalType = inscriptionType;
 
-      if (encryptionLevel > 0 && encryptedData) {
-        // Use the encrypted data
-        contentType = 'application/json';
-        inscriptionData = Utils.toArray(encryptedData, 'utf8');
-        console.log(`Creating encrypted inscription, size: ${inscriptionData.length} bytes, encryption level: ${encryptionLevel}`);
-      } else {
-        // Non-encrypted path
-        if (inscriptionType === 'text') {
-          const text = textData || 'Hello, 1Sat Ordinals!';
+      // Get the key segment for the selected encryption level
+      const keySegment = getKeySegmentForLevel(encryptionLevel);
+
+      if (inscriptionType === 'text') {
+        const text = textData || 'Hello, 1Sat Ordinals!';
+        
+        if (encryptionLevel > 0 && keySegment) {
+          // Encrypt the text
+          const { encryptedData, metadata } = await BlogEncryption.prepareEncryptedInscription(
+            text,
+            encryptionLevel,
+            keySegment
+          );
+          
+          // Wrap in JSON for encrypted content
+          contentType = 'application/json';
+          const wrapper = {
+            encrypted: true,
+            originalType: 'text',
+            data: encryptedData,
+            metadata
+          };
+          inscriptionData = Utils.toArray(JSON.stringify(wrapper), 'utf8');
+        } else {
+          // Unencrypted text
           contentType = 'text/plain;charset=utf-8';
           inscriptionData = Utils.toArray(text, 'utf8');
-        } 
-        else if (inscriptionType === 'image' && imageFile) {
-          const base64Data = await imageToBase64(imageFile);
-          contentType = imageFile.type || 'image/png';
-          inscriptionData = Utils.toArray(base64Data, 'base64');
-          console.log(`Image inscription: ${imageFile.name}, size: ${inscriptionData.length} bytes`);
         }
-        else if (inscriptionType === 'profile' || inscriptionType === 'profile2') {
-          const profileDataToSave: any = {
-            p: inscriptionType,
-            username: profileData.username || 'Anonymous',
-            title: profileData.title || 'BSV User',
-            bio: profileData.bio || 'On-chain profile',
-            timestamp: Date.now()
+      } 
+      else if (inscriptionType === 'image' && imageFile) {
+        const base64Data = await imageToBase64(imageFile);
+        
+        if (encryptionLevel > 0 && keySegment) {
+          // For encrypted images, we'll store metadata
+          const imageMetadata = {
+            name: imageFile.name,
+            type: imageFile.type,
+            size: imageFile.size
           };
           
-          if (profileImageFile) {
-            const base64Data = await imageToBase64(profileImageFile, 800);
-            profileDataToSave.avatar = `data:${profileImageFile.type};base64,${base64Data}`;
-          }
-          
-          if (inscriptionType === 'profile2' && backgroundImageFile) {
-            const base64Data = await imageToBase64(backgroundImageFile, 1200);
-            profileDataToSave.background = `data:${backgroundImageFile.type};base64,${base64Data}`;
-          }
+          const { encryptedData, metadata } = await BlogEncryption.prepareEncryptedInscription(
+            { ...imageMetadata, data: base64Data },
+            encryptionLevel,
+            keySegment
+          );
           
           contentType = 'application/json';
-          inscriptionData = Utils.toArray(JSON.stringify(profileDataToSave), 'utf8');
+          const wrapper = {
+            encrypted: true,
+            originalType: 'image',
+            data: encryptedData,
+            metadata
+          };
+          inscriptionData = Utils.toArray(JSON.stringify(wrapper), 'utf8');
+        } else {
+          // Unencrypted image
+          contentType = imageFile.type || 'image/png';
+          inscriptionData = Utils.toArray(base64Data, 'base64');
         }
-        else {
-          throw new Error('Invalid inscription type or missing data');
+        
+        console.log(`Image inscription: ${imageFile.name}, size: ${inscriptionData.length} bytes`);
+      }
+      else if (inscriptionType === 'profile' || inscriptionType === 'profile2') {
+        const profileDataToSave: any = {
+          p: inscriptionType,
+          username: profileData.username || 'Anonymous',
+          title: profileData.title || 'BSV User',
+          bio: profileData.bio || 'On-chain profile',
+          timestamp: Date.now()
+        };
+        
+        // Handle image data more carefully for large files
+        if (profileImageFile) {
+          try {
+            // Compress profile images more aggressively
+            const base64Data = await imageToBase64(profileImageFile, 800); // Max 800px
+            const avatarDataSize = base64Data.length;
+            console.log(`Avatar size: ${(avatarDataSize * 0.75 / 1024).toFixed(2)}KB`);
+            
+            // Only add if size is reasonable
+            if (avatarDataSize * 0.75 < 500000) { // < 500KB actual size
+              profileDataToSave.avatar = `data:${profileImageFile.type};base64,${base64Data}`;
+            } else {
+              console.warn('Avatar too large after compression, skipping');
+              setStatus({ 
+                type: 'error', 
+                message: 'Profile image too large. Please use a smaller image.' 
+              });
+              return;
+            }
+          } catch (imgError) {
+            console.error('Error processing profile image:', imgError);
+            setStatus({ 
+              type: 'error', 
+              message: 'Failed to process profile image' 
+            });
+            return;
+          }
+        }
+        
+        if (inscriptionType === 'profile2' && backgroundImageFile) {
+          try {
+            // Compress background images more aggressively
+            const base64Data = await imageToBase64(backgroundImageFile, 1200); // Max 1200px
+            const bgDataSize = base64Data.length;
+            console.log(`Background size: ${(bgDataSize * 0.75 / 1024).toFixed(2)}KB`);
+            
+            // Only add if size is reasonable
+            if (bgDataSize * 0.75 < 800000) { // < 800KB actual size
+              profileDataToSave.background = `data:${backgroundImageFile.type};base64,${base64Data}`;
+            } else {
+              console.warn('Background too large after compression, skipping');
+              setStatus({ 
+                type: 'error', 
+                message: 'Background image too large. Please use a smaller image.' 
+              });
+              return;
+            }
+          } catch (imgError) {
+            console.error('Error processing background image:', imgError);
+            setStatus({ 
+              type: 'error', 
+              message: 'Failed to process background image' 
+            });
+            return;
+          }
+        }
+        
+        // Convert to JSON and check size
+        const profileJson = JSON.stringify(profileDataToSave);
+        console.log(`Profile JSON size before encryption: ${(profileJson.length / 1024).toFixed(2)}KB`);
+        
+        if (encryptionLevel > 0 && keySegment) {
+          // Encrypt the profile data
+          const { encryptedData, metadata } = await BlogEncryption.prepareEncryptedInscription(
+            profileDataToSave,
+            encryptionLevel,
+            keySegment
+          );
+          
+          contentType = 'application/json';
+          const wrapper = {
+            encrypted: true,
+            originalType: inscriptionType,
+            data: encryptedData,
+            metadata
+          };
+          
+          // Check final size
+          const wrapperJson = JSON.stringify(wrapper);
+          console.log(`Encrypted wrapper size: ${(wrapperJson.length / 1024).toFixed(2)}KB`);
+          
+          inscriptionData = Utils.toArray(wrapperJson, 'utf8');
+        } else {
+          // Unencrypted profile
+          contentType = 'application/json';
+          inscriptionData = Utils.toArray(profileJson, 'utf8');
+        }
+        
+        // Final size check
+        const finalSizeKB = inscriptionData.length / 1024;
+        const finalSizeMB = finalSizeKB / 1024;
+        console.log(`Final inscription size: ${finalSizeKB.toFixed(2)}KB (${finalSizeMB.toFixed(3)}MB)`);
+        
+        if (finalSizeMB > 5) {
+          throw new Error(`Inscription too large: ${finalSizeMB.toFixed(2)}MB. Maximum allowed is 5MB.`);
         }
       }
+      else {
+        throw new Error('Invalid inscription type or missing data');
+      }
 
-      console.log(`Creating ${inscriptionType} inscription, size: ${inscriptionData.length} bytes`);
+      console.log(`Creating ${inscriptionType} inscription, size: ${inscriptionData.length} bytes, encryption level: ${encryptionLevel}`);
 
-      if (inscriptionData.length > 1000000) {
+      // Add detailed size warning
+      if (inscriptionData.length > 1000000) { // > 1MB
         const sizeMB = (inscriptionData.length / 1024 / 1024).toFixed(2);
         console.warn(`Large inscription detected: ${sizeMB}MB`);
         setStatus({
@@ -1142,10 +1118,12 @@ export const ProfileToken: React.FC = () => {
 
       const inscriptionScript = createInscriptionScript(pubKeyHash, contentType, inscriptionData);
       
+      // Check script size
       const scriptSize = inscriptionScript.toHex().length / 2;
       console.log(`Inscription script size: ${(scriptSize / 1024).toFixed(2)}KB`);
       
-      if (scriptSize > 100000) {
+      // BSV has various limits, but for safety let's warn on large scripts
+      if (scriptSize > 100000) { // 100KB script
         console.warn(`Very large script: ${(scriptSize / 1024).toFixed(2)}KB`);
       }
 
@@ -1243,8 +1221,6 @@ export const ProfileToken: React.FC = () => {
         setProfileImagePreview('');
         setBackgroundImageFile(null);
         setBackgroundImagePreview('');
-        setEncryptedData('');
-        setEncryptedSize(0);
         
         setTimeout(() => {
           setStatus(prev => ({
@@ -1259,13 +1235,14 @@ export const ProfileToken: React.FC = () => {
     } catch (error) {
       console.error('Error creating ordinal:', error);
       
+      // More specific error messages
       let errorMessage = 'Failed to create ordinal';
       
       if (error instanceof Error) {
         if (error.message.includes('too many function arguments')) {
           errorMessage = 'Transaction too complex. Try reducing image sizes or removing one image.';
         } else if (error.message.includes('too large')) {
-          errorMessage = error.message;
+          errorMessage = error.message; // Use our custom size error
         } else if (error.message.includes('Insufficient funds')) {
           errorMessage = error.message;
         } else {
@@ -1474,334 +1451,320 @@ export const ProfileToken: React.FC = () => {
                 )}
               </div>
 
-              {/* Side by Side Layout */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Left Side - Original Data Input */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium text-white">Original Data</h3>
-                  
-                  {/* Text Input */}
-                  {inscriptionType === 'text' && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Text Message</label>
-                      <textarea
-                        value={textData}
-                        onChange={(e) => setTextData(e.target.value)}
-                        placeholder="Enter your message..."
-                        className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white"
-                        rows={4}
-                      />
-                      <p className="text-xs text-gray-400 mt-1">
-                        {textData.length} characters ({new TextEncoder().encode(textData).length} bytes)
-                      </p>
-                    </div>
-                  )}
+              {/* Text Input */}
+              {inscriptionType === 'text' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Text Message</label>
+                  <textarea
+                    value={textData}
+                    onChange={(e) => setTextData(e.target.value)}
+                    placeholder="Enter your message..."
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white"
+                    rows={4}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    {textData.length} characters ({new TextEncoder().encode(textData).length} bytes)
+                    {encryptionLevel > 0 && ' + encryption overhead'}
+                  </p>
+                </div>
+              )}
 
-                  {/* Image Upload */}
-                  {inscriptionType === 'image' && (
+              {/* Image Upload */}
+              {inscriptionType === 'image' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Select Image</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageSelect}
+                    className="hidden"
+                    id="image-upload"
+                  />
+                  <label
+                    htmlFor="image-upload"
+                    className="block w-full p-8 bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-purple-500 transition-colors"
+                  >
+                    {imagePreview ? (
+                      <div className="text-center">
+                        <img
+                          src={imagePreview}
+                          alt="Preview"
+                          className="max-h-48 mx-auto rounded mb-2"
+                        />
+                        <p className="text-sm text-gray-400">
+                          {imageFile?.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Size: {((imageFile?.size || 0) / 1024).toFixed(0)}KB
+                          {imageFile && imageFile.size > 1024 * 1024 &&
+                            ` (${(imageFile.size / 1024 / 1024).toFixed(2)}MB)`
+                          }
+                        </p>
+                        <p className="text-xs text-yellow-400 mt-1">
+                          Estimated fee: {(() => {
+                            const base64Size = Math.ceil((imageFile?.size || 0) * 1.37);
+                            const encryptionOverhead = encryptionLevel > 0 ? 100 : 0;
+                            const { fee } = calculateTransactionFee(1, 2, base64Size + encryptionOverhead, currentFeeRate);
+                            return `${fee.toLocaleString()} sats`;
+                          })()}
+                        </p>
+                        {encryptionLevel > 0 && (
+                          <p className="text-xs text-indigo-400 mt-1">
+                            🔒 Will be encrypted (Level {encryptionLevel})
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center">
+                        <svg className="w-12 h-12 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <p className="text-gray-400">Click to upload image</p>
+                        <p className="text-xs text-gray-500 mt-1">Max 5MB</p>
+                      </div>
+                    )}
+                  </label>
+                </div>
+              )}
+
+              {/* Profile Form */}
+              {inscriptionType === 'profile' && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Username</label>
+                    <input
+                      type="text"
+                      value={profileData.username}
+                      onChange={(e) => setProfileData({ ...profileData, username: e.target.value })}
+                      placeholder="satoshi"
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Title</label>
+                    <input
+                      type="text"
+                      value={profileData.title}
+                      onChange={(e) => setProfileData({ ...profileData, title: e.target.value })}
+                      placeholder="Bitcoin Creator"
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Bio</label>
+                    <textarea
+                      value={profileData.bio}
+                      onChange={(e) => setProfileData({ ...profileData, bio: e.target.value })}
+                      placeholder="Building peer-to-peer electronic cash..."
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white"
+                      rows={3}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Profile Image</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleProfileImageSelect(e, false)}
+                      className="hidden"
+                      id="profile-avatar-upload"
+                    />
+                    <label
+                      htmlFor="profile-avatar-upload"
+                      className="block w-full p-6 bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-purple-500 transition-colors"
+                    >
+                      {profileImagePreview ? (
+                        <div className="text-center">
+                          <img
+                            src={profileImagePreview}
+                            alt="Profile preview"
+                            className="w-24 h-24 mx-auto rounded-full object-cover mb-2"
+                          />
+                          <p className="text-xs text-gray-400">
+                            {profileImageFile?.name} ({((profileImageFile?.size || 0) / 1024).toFixed(0)}KB)
+                          </p>
+                          {encryptionLevel > 0 && (
+                            <p className="text-xs text-indigo-400 mt-1">
+                              🔒 Profile will be encrypted
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-center">
+                          <svg className="w-10 h-10 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                          <p className="text-gray-400 text-sm">Upload profile image</p>
+                          <p className="text-xs text-gray-500 mt-1">Max 5MB</p>
+                        </div>
+                      )}
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* Profile2 Form with Background */}
+              {inscriptionType === 'profile2' && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Username</label>
+                    <input
+                      type="text"
+                      value={profileData.username}
+                      onChange={(e) => setProfileData({ ...profileData, username: e.target.value })}
+                      placeholder="satoshi"
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Title</label>
+                    <input
+                      type="text"
+                      value={profileData.title}
+                      onChange={(e) => setProfileData({ ...profileData, title: e.target.value })}
+                      placeholder="Bitcoin Creator"
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">Bio</label>
+                    <textarea
+                      value={profileData.bio}
+                      onChange={(e) => setProfileData({ ...profileData, bio: e.target.value })}
+                      placeholder="Building peer-to-peer electronic cash..."
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white"
+                      rows={3}
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Profile Image */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Select Image</label>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Profile Image</label>
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={handleImageSelect}
+                        onChange={(e) => handleProfileImageSelect(e, false)}
                         className="hidden"
-                        id="image-upload"
+                        id="profile2-avatar-upload"
                       />
                       <label
-                        htmlFor="image-upload"
-                        className="block w-full p-8 bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-purple-500 transition-colors"
+                        htmlFor="profile2-avatar-upload"
+                        className="block w-full p-4 bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-purple-500 transition-colors"
                       >
-                        {imagePreview ? (
+                        {profileImagePreview ? (
                           <div className="text-center">
                             <img
-                              src={imagePreview}
-                              alt="Preview"
-                              className="max-h-32 mx-auto rounded mb-2"
+                              src={profileImagePreview}
+                              alt="Profile preview"
+                              className="w-20 h-20 mx-auto rounded-full object-cover mb-1"
                             />
-                            <p className="text-sm text-gray-400">
-                              {imageFile?.name}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              Size: {((imageFile?.size || 0) / 1024).toFixed(0)}KB
+                            <p className="text-xs text-gray-400">
+                              {((profileImageFile?.size || 0) / 1024).toFixed(0)}KB
                             </p>
                           </div>
                         ) : (
                           <div className="text-center">
-                            <svg className="w-12 h-12 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            <svg className="w-8 h-8 mx-auto text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                             </svg>
-                            <p className="text-gray-400">Click to upload image</p>
-                            <p className="text-xs text-gray-500 mt-1">Max 5MB</p>
+                            <p className="text-xs text-gray-400">Profile</p>
                           </div>
                         )}
                       </label>
                     </div>
-                  )}
 
-                  {/* Profile Form */}
-                  {(inscriptionType === 'profile' || inscriptionType === 'profile2') && (
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">Username</label>
-                        <input
-                          type="text"
-                          value={profileData.username}
-                          onChange={(e) => setProfileData({ ...profileData, username: e.target.value })}
-                          placeholder="satoshi"
-                          className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">Title</label>
-                        <input
-                          type="text"
-                          value={profileData.title}
-                          onChange={(e) => setProfileData({ ...profileData, title: e.target.value })}
-                          placeholder="Bitcoin Creator"
-                          className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">Bio</label>
-                        <textarea
-                          value={profileData.bio}
-                          onChange={(e) => setProfileData({ ...profileData, bio: e.target.value })}
-                          placeholder="Building peer-to-peer electronic cash..."
-                          className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white"
-                          rows={3}
-                        />
-                      </div>
-                      
-                      {/* Profile Images */}
-                      <div className={inscriptionType === 'profile2' ? 'grid grid-cols-2 gap-2' : ''}>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-1">
-                            {inscriptionType === 'profile2' ? 'Avatar' : 'Profile Image'}
-                          </label>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleProfileImageSelect(e, false)}
-                            className="hidden"
-                            id="profile-avatar-upload"
-                          />
-                          <label
-                            htmlFor="profile-avatar-upload"
-                            className="block w-full p-4 bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-purple-500 transition-colors"
-                          >
-                            {profileImagePreview ? (
-                              <div className="text-center">
-                                <img
-                                  src={profileImagePreview}
-                                  alt="Profile preview"
-                                  className="w-16 h-16 mx-auto rounded-full object-cover mb-1"
-                                />
-                                <p className="text-xs text-gray-400">
-                                  {((profileImageFile?.size || 0) / 1024).toFixed(0)}KB
-                                </p>
-                              </div>
-                            ) : (
-                              <div className="text-center">
-                                <svg className="w-8 h-8 mx-auto text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                </svg>
-                                <p className="text-xs text-gray-400">Upload</p>
-                              </div>
-                            )}
-                          </label>
-                        </div>
-
-                        {inscriptionType === 'profile2' && (
-                          <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-1">Background</label>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => handleProfileImageSelect(e, true)}
-                              className="hidden"
-                              id="profile-background-upload"
+                    {/* Background Image */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Background Image</label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleProfileImageSelect(e, true)}
+                        className="hidden"
+                        id="profile2-background-upload"
+                      />
+                      <label
+                        htmlFor="profile2-background-upload"
+                        className="block w-full p-4 bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-purple-500 transition-colors"
+                      >
+                        {backgroundImagePreview ? (
+                          <div className="text-center">
+                            <img
+                              src={backgroundImagePreview}
+                              alt="Background preview"
+                              className="w-full h-20 mx-auto object-cover rounded mb-1"
                             />
-                            <label
-                              htmlFor="profile-background-upload"
-                              className="block w-full p-4 bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-purple-500 transition-colors"
-                            >
-                              {backgroundImagePreview ? (
-                                <div className="text-center">
-                                  <img
-                                    src={backgroundImagePreview}
-                                    alt="Background preview"
-                                    className="w-full h-16 mx-auto object-cover rounded mb-1"
-                                  />
-                                  <p className="text-xs text-gray-400">
-                                    {((backgroundImageFile?.size || 0) / 1024).toFixed(0)}KB
-                                  </p>
-                                </div>
-                              ) : (
-                                <div className="text-center">
-                                  <svg className="w-8 h-8 mx-auto text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                  </svg>
-                                  <p className="text-xs text-gray-400">Upload</p>
-                                </div>
-                              )}
-                            </label>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Wallet Info */}
-                  <div className="p-3 bg-gray-800 rounded-lg">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-400">Address:</span>
-                      <span className="text-gray-300 font-mono text-xs">
-                        {keyData.address ? `${keyData.address.substring(0, 12)}...${keyData.address.substring(keyData.address.length - 8)}` : 'Not connected'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm mt-2">
-                      <span className="text-gray-400">Balance:</span>
-                      <span className="text-gray-300">{balance.confirmed.toLocaleString()} sats</span>
-                    </div>
-                    {blogKeyHistory.current && (
-                      <div className="flex justify-between items-center text-sm mt-2">
-                        <span className="text-gray-400">Blog Key:</span>
-                        <span className="text-gray-300">
-                          {blogKeyHistory.current.version} 
-                          <span className="text-gray-500 ml-1">({blogKeyHistory.current.fullKey.substring(0, 8)}...)</span>
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Non-encrypted Create Button */}
-                  {encryptionLevel === 0 && (
-                    <button
-                      onClick={createOrdinal}
-                      disabled={loading || !keyData.privateKey || balance.confirmed < 500 || 
-                        (inscriptionType === 'image' && !imageFile) ||
-                        (inscriptionType === 'profile2' && !profileImageFile && !backgroundImageFile) ||
-                        (Date.now() - lastTransactionTime < 5000)}
-                      className="w-full py-3 px-6 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {loading ? 'Creating Inscription...' : 
-                       (Date.now() - lastTransactionTime < 5000) ? 
-                        `Wait ${Math.ceil((5000 - (Date.now() - lastTransactionTime)) / 1000)}s...` :
-                        `Create ${inscriptionType.charAt(0).toUpperCase() + inscriptionType.slice(1)} Ordinal`}
-                    </button>
-                  )}
-                </div>
-
-                {/* Right Side - Encrypted Data Display */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium text-white">
-                    {encryptionLevel > 0 ? 'Encrypted Data' : 'Preview'}
-                  </h3>
-                  
-                  {/* Encrypted Data Display */}
-                  {encryptionLevel > 0 ? (
-                    <div className="h-full">
-                      {isEncrypting ? (
-                        <div className="flex items-center justify-center h-32">
-                          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
-                          <span className="ml-2 text-gray-300">Encrypting...</span>
-                        </div>
-                      ) : encryptedData ? (
-                        <div className="space-y-4">
-                          <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-medium text-green-400">Encrypted Data</span>
-                              <span className={`text-xs px-2 py-1 rounded bg-${getEncryptionLevelColor(encryptionLevel)}-600 text-white`}
-                                style={{
-                                  backgroundColor: {
-                                    0: '#6B7280',
-                                    1: '#F59E0B',
-                                    2: '#EAB308',
-                                    3: '#6366F1',
-                                    4: '#A855F7',
-                                    5: '#EF4444'
-                                  }[encryptionLevel]
-                                }}
-                              >
-                                Level {encryptionLevel}
-                              </span>
-                            </div>
-                            <pre className="text-xs font-mono text-green-400 break-all max-h-64 overflow-y-auto">
-                              {encryptedData.substring(0, 500)}
-                              {encryptedData.length > 500 && '...'}
-                            </pre>
-                          </div>
-                          
-                          <div className="p-3 bg-gray-800 rounded-lg space-y-2">
-                            <div className="flex justify-between text-sm">
-                              <span className="text-gray-400">Encrypted Size:</span>
-                              <span className="text-gray-300">
-                                {(encryptedSize / 1024).toFixed(2)} KB
-                                {encryptedSize > 1024 * 1024 && ` (${(encryptedSize / 1024 / 1024).toFixed(2)} MB)`}
-                              </span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                              <span className="text-gray-400">Estimated Fee:</span>
-                              <span className="text-gray-300">
-                                {(() => {
-                                  const { fee } = calculateTransactionFee(1, 2, encryptedSize, currentFeeRate);
-                                  return `${fee.toLocaleString()} sats`;
-                                })()}
-                              </span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                              <span className="text-gray-400">Access Level:</span>
-                              <span className="text-gray-300">{getEncryptionLevelLabel(encryptionLevel)}</span>
-                            </div>
-                          </div>
-                          
-                          <div className="p-3 bg-indigo-900 bg-opacity-30 rounded-lg border border-indigo-700">
-                            <p className="text-xs text-indigo-300">
-                              🔒 This data will be encrypted on-chain. Only holders of your blog key with level {encryptionLevel} access or higher can decrypt it.
+                            <p className="text-xs text-gray-400">
+                              {((backgroundImageFile?.size || 0) / 1024).toFixed(0)}KB
                             </p>
                           </div>
-
-                          {/* Create Encrypted Ordinal Button */}
-                          <button
-                            onClick={createOrdinal}
-                            disabled={loading || !keyData.privateKey || balance.confirmed < 500 || !encryptedData ||
-                              (Date.now() - lastTransactionTime < 5000) || !blogKeyHistory.current}
-                            className="w-full py-3 px-6 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {loading ? 'Creating Encrypted Inscription...' : 
-                             (Date.now() - lastTransactionTime < 5000) ? 
-                              `Wait ${Math.ceil((5000 - (Date.now() - lastTransactionTime)) / 1000)}s...` :
-                              `Create Encrypted ${inscriptionType.charAt(0).toUpperCase() + inscriptionType.slice(1)} Ordinal`}
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center h-32 text-gray-500">
-                          <p className="text-sm">Enter data to see encrypted preview</p>
-                        </div>
-                      )}
+                        ) : (
+                          <div className="text-center">
+                            <svg className="w-8 h-8 mx-auto text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <p className="text-xs text-gray-400">Background</p>
+                          </div>
+                        )}
+                      </label>
                     </div>
-                  ) : (
-                    // Non-encrypted preview
-                    <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg">
-                      <p className="text-sm text-gray-400 mb-2">Data Preview (Unencrypted)</p>
-                      {inscriptionType === 'text' && textData && (
-                        <pre className="text-xs text-gray-300 whitespace-pre-wrap">{textData}</pre>
-                      )}
-                      {inscriptionType === 'image' && imagePreview && (
-                        <img src={imagePreview} alt="Preview" className="max-h-32 mx-auto rounded" />
-                      )}
-                      {(inscriptionType === 'profile' || inscriptionType === 'profile2') && (
-                        <div className="text-sm text-gray-300 space-y-1">
-                          <p><span className="text-gray-400">Username:</span> {profileData.username || 'Not set'}</p>
-                          <p><span className="text-gray-400">Title:</span> {profileData.title || 'Not set'}</p>
-                          <p><span className="text-gray-400">Bio:</span> {profileData.bio || 'Not set'}</p>
-                        </div>
+                  </div>
+                  
+                  {(profileImageFile || backgroundImageFile) && (
+                    <div className="p-2 bg-gray-900 rounded text-xs">
+                      <p className="text-gray-400">
+                        Total size: {(((profileImageFile?.size || 0) + (backgroundImageFile?.size || 0)) / 1024).toFixed(0)}KB 
+                        / 5120KB ({(((profileImageFile?.size || 0) + (backgroundImageFile?.size || 0)) / (5 * 1024 * 1024) * 100).toFixed(1)}%)
+                      </p>
+                      {encryptionLevel > 0 && (
+                        <p className="text-indigo-400 mt-1">
+                          🔒 Profile will be encrypted (Level {encryptionLevel})
+                        </p>
                       )}
                     </div>
                   )}
                 </div>
+              )}
+
+              {/* Wallet Info */}
+              <div className="p-3 bg-gray-800 rounded-lg">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-400">Address:</span>
+                  <span className="text-gray-300 font-mono text-xs">
+                    {keyData.address ? `${keyData.address.substring(0, 12)}...${keyData.address.substring(keyData.address.length - 8)}` : 'Not connected'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-sm mt-2">
+                  <span className="text-gray-400">Balance:</span>
+                  <span className="text-gray-300">{balance.confirmed.toLocaleString()} sats</span>
+                </div>
+                {blogKeyHistory.current && (
+                  <div className="flex justify-between items-center text-sm mt-2">
+                    <span className="text-gray-400">Blog Key:</span>
+                    <span className="text-gray-300">
+                      {blogKeyHistory.current.version} 
+                      <span className="text-gray-500 ml-1">({blogKeyHistory.current.fullKey.substring(0, 8)}...)</span>
+                    </span>
+                  </div>
+                )}
               </div>
+
+              {/* Create Button */}
+              <button
+                onClick={createOrdinal}
+                disabled={loading || !keyData.privateKey || balance.confirmed < 500 || 
+                  (inscriptionType === 'image' && !imageFile) ||
+                  (inscriptionType === 'profile2' && !profileImageFile && !backgroundImageFile) ||
+                  (Date.now() - lastTransactionTime < 5000) ||
+                  (encryptionLevel > 0 && !blogKeyHistory.current)}
+                className="w-full py-3 px-6 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Creating Inscription...' : 
+                 (Date.now() - lastTransactionTime < 5000) ? 
+                  `Wait ${Math.ceil((5000 - (Date.now() - lastTransactionTime)) / 1000)}s...` :
+                  `Create ${inscriptionType.charAt(0).toUpperCase() + inscriptionType.slice(1)} Ordinal${encryptionLevel > 0 ? ' (Encrypted)' : ''}`}
+              </button>
 
               {/* Transaction Status */}
               {lastTransactionTime > 0 && (
@@ -2178,3 +2141,4 @@ export const ProfileToken: React.FC = () => {
     </div>
   );
 };
+
