@@ -5,12 +5,12 @@ import { Wallet } from '../wallet2/components/Wallet';
 import { Contacts } from '../wallet2/components/Contacts';
 import { Messages } from '../wallet2/components/Messages';
 import { Conversations } from '../wallet2/components/Conversations';
-import { ProfileToken } from '../wallet2/components/ProfileToken4';
+import { ProfileToken } from '../wallet2/components/ProfileToken5';
 import { examplePublicKeys } from './data2';
 
 type ViewMode = 'wallet' | 'contacts' | 'messages' | 'conversations' | 'profiles';
 
-const WalletApp: React.FC = () => {
+const WalletApp1: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('wallet');
   
   const {
@@ -142,4 +142,4 @@ const WalletApp: React.FC = () => {
   );
 };
 
-export default WalletApp;
+export default WalletApp1;

@@ -19,12 +19,14 @@ import React, { useState } from 'react';
 import Wallet from '../components/wallet/wallet4'; // This is ECDH WORKING
 // import Wallet from '../components/wallet/wallet5'; // This has  TYPE-42 on  development
 import WalletApp from '../components/wallet/wallet6';
+import WalletApp1 from '../components/wallet/wallet7';
 // import WalletProfile from '../components/wallet/profilewallet';
 // import mintProfileDataToken from '../components/wallet/profiledatatoken';
 
   const tabComponents = {
     Wallet: <Wallet  />,
     WalletApp: <WalletApp />,
+        WalletApp1: <WalletApp1 />,
        // WalletProfile: <WalletProfile />,
   };
 
@@ -59,6 +61,17 @@ const WalletPage: React.FC = () => {
                       >
                         WalletApp
                         {activeTab === 'WalletApp' && (
+                          <div className="absolute bottom-0 left-0 right-0 h-1 bg-sky-500 rounded-full"></div>
+                        )}
+                      </button>
+                                                                  <button
+                        onClick={() => setActiveTab('WalletApp1')}
+                        className={`flex-1 py-4 hover:bg-white/10 transition-colors relative ${
+                          activeTab === 'WalletApp' ? 'font-bold' : 'text-gray-500'
+                        }`}
+                      >
+                        WalletApp1
+                        {activeTab === 'WalletApp1' && (
                           <div className="absolute bottom-0 left-0 right-0 h-1 bg-sky-500 rounded-full"></div>
                         )}
                       </button>
