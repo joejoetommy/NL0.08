@@ -1,3 +1,6 @@
+// Check if the transaction is settled  https://test.whatsonchain.com/tx376ab5342dd899269e3ee553dba470b212a8570709583f01d77cf871f4efd81e
+// https://test.whatsonchain.com/tx/389dd496bea1086e7bc52e23e15b47a7897c52a095e011ca7f8f8840fadedde1   https://test.whatsonchain.com/tx/ac8498a3231b37e13b66de5b43b9df5bef9a0e2093a8f91eede02bcf053746eb
+
 // 2nd key d3842ed475242f25f5839cf92043c8341d0e654e8d29119843a15fdaed9b2c43   mx3cGq6YBiH8rYJycgLeW1QGuPUnDoUrCj TXID=8eb02eb50cbf8a65df7722b33ce48f2fe1f50705e99e5bfe05c096b1e464e49f   
 //   jesus is king    lvl 1 8eb4cafed6b5 
 //   jesus is king    lvl 2 8eb4cafed6b5a3e0a893441e3    

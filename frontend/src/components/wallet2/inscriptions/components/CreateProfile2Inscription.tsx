@@ -38,7 +38,20 @@ export const CreateProfile2Inscription: React.FC<CreateProfile2InscriptionProps>
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Calculate total size
+    // Calculate total size - increased limits for profile2
+    const maxPerImage = 2.4 * 1024 * 1024; // 2.4MB per image
+    const maxTotal = 4.8 * 1024 * 1024; // 4.8MB total for both images
+    
+    // Check individual file size
+    if (file.size > maxPerImage) {
+      setStatus({ 
+        type: 'error', 
+        message: `Image too large. Maximum size per image is 2.4MB, your file is ${(file.size / (1024 * 1024)).toFixed(2)}MB.` 
+      });
+      return;
+    }
+    
+    // Calculate combined size
     let totalSize = file.size;
     if (isBackground && profileImageFile) {
       totalSize += profileImageFile.size;
@@ -46,11 +59,10 @@ export const CreateProfile2Inscription: React.FC<CreateProfile2InscriptionProps>
       totalSize += backgroundImageFile.size;
     }
 
-    const maxSize = 5 * 1024 * 1024;
-    if (totalSize > maxSize) {
+    if (totalSize > maxTotal) {
       setStatus({ 
         type: 'error', 
-        message: `Combined images too large. Maximum total size is 5MB, current total is ${(totalSize / (1024 * 1024)).toFixed(2)}MB.` 
+        message: `Combined images too large. Maximum total size is 4.8MB, current total is ${(totalSize / (1024 * 1024)).toFixed(2)}MB.` 
       });
       return;
     }
@@ -73,7 +85,7 @@ export const CreateProfile2Inscription: React.FC<CreateProfile2InscriptionProps>
 
     setStatus({ 
       type: 'info', 
-      message: `Total size: ${(totalSize / 1024).toFixed(0)}KB` 
+      message: `Total size: ${(totalSize / 1024 / 1024).toFixed(2)}MB` 
     });
   };
 

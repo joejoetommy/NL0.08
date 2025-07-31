@@ -30,12 +30,12 @@ export const CreateProfileInscription: React.FC<CreateProfileInscriptionProps> =
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Check file size
-    const maxSize = 5 * 1024 * 1024;
+    // Check file size - increased limits
+    const maxSize = 3.6 * 1024 * 1024; // 3.6MB for both encrypted and unencrypted
     if (file.size > maxSize) {
       setStatus({ 
         type: 'error', 
-        message: `Profile image too large. Maximum size is 5MB, your file is ${(file.size / (1024 * 1024)).toFixed(2)}MB.` 
+        message: `Profile image too large. Maximum size is 3.6MB, your file is ${(file.size / (1024 * 1024)).toFixed(2)}MB.` 
       });
       return;
     }
@@ -51,7 +51,7 @@ export const CreateProfileInscription: React.FC<CreateProfileInscriptionProps> =
 
     setStatus({ 
       type: 'info', 
-      message: `Profile image: ${(file.size / 1024).toFixed(0)}KB` 
+      message: `Profile image: ${(file.size / 1024 / 1024).toFixed(2)}MB` 
     });
   };
 

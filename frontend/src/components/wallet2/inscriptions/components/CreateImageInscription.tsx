@@ -1,7 +1,6 @@
 import React from 'react';
 import { calculateTransactionFee } from '../utils/feeCalculator';
 
-
 interface CreateImageInscriptionProps {
   imageFile: File | null;
   setImageFile: (file: File | null) => void;
@@ -25,10 +24,10 @@ export const CreateImageInscription: React.FC<CreateImageInscriptionProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Image inscription specific limits: 4.8MB unencrypted, 3.7MB encrypted
+    // Image inscription specific limits - increased to allow larger transactions
     const isEncrypted = encryptionLevel > 0;
-    const maxSize = isEncrypted ? 3.7 * 1024 * 1024 : 4.8 * 1024 * 1024;
-    const maxSizeMB = isEncrypted ? 3.7 : 4.8;
+    const maxSize = isEncrypted ? 3.5 * 1024 * 1024 : 3.6 * 1024 * 1024;
+    const maxSizeMB = isEncrypted ? 3.5 : 3.6;
     
     if (file.size > maxSize) {
       setStatus({ 

@@ -39,7 +39,7 @@ export const calculateTransactionFee = (
 // Validate transaction size against BSV limits
 export const validateTransactionSize = (sizeInBytes: number): { valid: boolean; error?: string } => {
   const MAX_TX_SIZE = 5 * 1024 * 1024; // 5MB
-  const SAFE_TX_SIZE = 4.8 * 1024 * 1024; // 4.8MB (leaving margin)
+  const SAFE_TX_SIZE = 4.95 * 1024 * 1024; // 4.95MB (leaving small margin)
   
   if (sizeInBytes > MAX_TX_SIZE) {
     return {
@@ -49,7 +49,7 @@ export const validateTransactionSize = (sizeInBytes: number): { valid: boolean; 
   }
   
   if (sizeInBytes > SAFE_TX_SIZE) {
-    console.warn(`Transaction size (${(sizeInBytes / 1024 / 1024).toFixed(2)}MB) is close to 5MB limit`);
+    console.warn(`Transaction size (${(sizeInBytes / 1024 / 1024).toFixed(2)}MB) is very close to 5MB limit`);
   }
   
   return { valid: true };

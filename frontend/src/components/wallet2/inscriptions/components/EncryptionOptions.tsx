@@ -81,11 +81,11 @@ export const EncryptionOptions: React.FC<EncryptionOptionsProps> = ({
               <p>• Uses {Math.floor(64 * encryptionLevel / 5)} characters of your blog key</p>
               <p>• Adds ~10% size overhead to inscription</p>
               <div className="mt-2 p-2 bg-gray-900 rounded">
-                <p className="text-indigo-300 font-medium mb-1">Size limits when encrypted:</p>
+                <p className="text-indigo-300 font-medium mb-1">Actual size limits:</p>
                 <ul className="space-y-0.5 text-gray-400">
-                  <li>• Image tab: 3.7MB max</li>
-                  <li>• Profile tab: 3.0MB max</li>
-                  <li>• Profile2 tab: 1.5MB max per image</li>
+                  <li>• Image tab: 3.5MB max (encrypted), 3.6MB (unencrypted)</li>
+                  <li>• Profile tab: 3.5MB max (encrypted), 3.6MB (unencrypted)</li>
+                  <li>• Profile2 tab: 2.2MB max per image (encrypted), 2.4MB (unencrypted)</li>
                 </ul>
               </div>
             </>

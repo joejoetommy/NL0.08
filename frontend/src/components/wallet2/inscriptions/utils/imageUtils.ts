@@ -10,31 +10,35 @@ export const imageToBase64 = (
     const reader = new FileReader();
     
     // Define size limits based on inscription type and encryption
+    // These are the actual data limits that will fit in a 5MB transaction
     const getSizeLimit = () => {
       if (inscriptionType === 'image') {
-        // Allow larger sizes that will fit in 5MB transaction
-        return isEncrypted ? 3.5 : 3.6; // Actual limit for data that fits in 5MB tx
+        // For ~4.9MB transactions, we can have ~3.55MB of base64 data
+        return isEncrypted ? 3.4 : 3.55;
       } else if (inscriptionType === 'profile') {
-        return isEncrypted ? 3.5 : 3.6; // Increased limits
+        return isEncrypted ? 3.4 : 3.55;
       } else if (inscriptionType === 'profile2') {
-        return isEncrypted ? 1.7 : 1.8; // Increased limits for profile2
+        // For profile2, two images need to fit
+        return isEncrypted ? 2.2 : 2.4;
       }
-      return targetSizeMB || 3.5; // Default fallback
+      return targetSizeMB || 3.55;
     };
     
     const maxSizeMB = targetSizeMB || getSizeLimit();
     const maxSizeBytes = maxSizeMB * 1024 * 1024;
     
-    // For smaller files that are under the limit, just convert directly
+    // Calculate if we need compression
     const base64Overhead = 1.37;
     const estimatedBase64Size = file.size * base64Overhead;
     
-    // More aggressive passthrough - only compress if really needed
-    if (estimatedBase64Size < maxSizeBytes * 0.98 && !maxWidth) { // 98% to leave small margin
+    // Only compress if we're over the limit or maxWidth is specified
+    if (estimatedBase64Size <= maxSizeBytes && !maxWidth) {
       reader.onload = () => {
         const base64 = reader.result as string;
         const base64Data = base64.split(',')[1];
-        console.log(`Image passed through without compression: ${(file.size / 1024 / 1024).toFixed(2)}MB → ${(base64Data.length / 1024 / 1024).toFixed(2)}MB base64`);
+        const base64SizeMB = (base64Data.length / 1024 / 1024).toFixed(2);
+        console.log(`Image passed through without compression: ${(file.size / 1024 / 1024).toFixed(2)}MB → ${base64SizeMB}MB base64`);
+        console.log(`Inscription type: ${inscriptionType}, Encrypted: ${isEncrypted}`);
         resolve(base64Data);
       };
       reader.onerror = reject;
@@ -42,7 +46,7 @@ export const imageToBase64 = (
       return;
     }
     
-    // For larger files or when maxWidth is specified, use compression
+    // Need compression
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
@@ -53,78 +57,87 @@ export const imageToBase64 = (
           return;
         }
         
-        // Calculate new dimensions based on file size
         let width = img.width;
         let height = img.height;
         
-        // Only resize if absolutely necessary or maxWidth is specified
-        let maxDimension = maxWidth;
-        if (!maxDimension) {
-          const currentDataSize = file.size * base64Overhead;
-          
-          if (currentDataSize > maxSizeBytes) {
-            // Only compress if we exceed the size limit
-            const reductionFactor = Math.sqrt(maxSizeBytes / currentDataSize) * 0.95; // 0.95 for safety
-            maxDimension = Math.max(800, Math.floor(Math.max(width, height) * reductionFactor));
-          } else {
-            // Don't resize if under limit
-            maxDimension = Math.max(width, height);
-          }
-        }
-        
-        if (width > maxDimension || height > maxDimension) {
+        // Calculate dimension reduction if needed
+        if (maxWidth && (width > maxWidth || height > maxWidth)) {
           if (width > height) {
-            height = Math.round((height / width) * maxDimension);
-            width = maxDimension;
+            height = Math.round((height / width) * maxWidth);
+            width = maxWidth;
           } else {
-            width = Math.round((width / height) * maxDimension);
-            height = maxDimension;
+            width = Math.round((width / height) * maxWidth);
+            height = maxWidth;
+          }
+        } else if (estimatedBase64Size > maxSizeBytes) {
+          // Only resize if we must to fit size limit
+          const reductionFactor = Math.sqrt(maxSizeBytes / estimatedBase64Size) * 0.98;
+          const maxDimension = Math.max(1200, Math.floor(Math.max(width, height) * reductionFactor));
+          
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height / width) * maxDimension);
+              width = maxDimension;
+            } else {
+              width = Math.round((width / height) * maxDimension);
+              height = maxDimension;
+            }
           }
         }
         
         canvas.width = width;
         canvas.height = height;
         
-        // Enable image smoothing for better quality
+        // High quality rendering
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
-        
-        // Draw and compress
         ctx.drawImage(img, 0, 0, width, height);
         
-        // Higher quality for less compression
-        let quality = inscriptionType === 'image' ? 0.98 : 0.95; // Very high quality
-        let targetSize = maxSizeBytes * 0.98; // 98% of limit
+        // Start with very high quality
+        let quality = 0.98;
+        let targetSize = maxSizeBytes;
         
-        let dataUrl = canvas.toDataURL(file.type || 'image/jpeg', quality);
+        // Try PNG first if original was PNG and size permits
+        let dataUrl: string;
+        if (file.type === 'image/png' && estimatedBase64Size < maxSizeBytes * 1.2) {
+          dataUrl = canvas.toDataURL('image/png');
+          if (dataUrl.length <= targetSize) {
+            const base64Data = dataUrl.split(',')[1];
+            console.log(`PNG preserved: ${(file.size / 1024 / 1024).toFixed(2)}MB → ${(base64Data.length / 1024 / 1024).toFixed(2)}MB base64`);
+            resolve(base64Data);
+            return;
+          }
+        }
         
-        // Only reduce quality if absolutely necessary
-        while (dataUrl.length > targetSize && quality > 0.7) { // Higher minimum quality
-          quality -= 0.02; // Smaller decrements
+        // Use JPEG with progressive quality reduction
+        dataUrl = canvas.toDataURL('image/jpeg', quality);
+        
+        // Only reduce quality if necessary
+        while (dataUrl.length > targetSize && quality > 0.85) {
+          quality -= 0.01; // Very small decrements
           dataUrl = canvas.toDataURL('image/jpeg', quality);
         }
         
-        // If still too large, reduce dimensions slightly
-        if (dataUrl.length > targetSize && !maxWidth) {
-          const scaleFactor = Math.sqrt(targetSize / dataUrl.length) * 0.98;
+        // If still too large, try one more dimension reduction
+        if (dataUrl.length > targetSize) {
+          const scaleFactor = Math.sqrt(targetSize / dataUrl.length) * 0.99;
           canvas.width = Math.round(width * scaleFactor);
           canvas.height = Math.round(height * scaleFactor);
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          dataUrl = canvas.toDataURL('image/jpeg', quality + 0.05); // Slightly higher quality after resize
+          dataUrl = canvas.toDataURL('image/jpeg', Math.min(quality + 0.02, 0.98));
         }
         
         const base64Data = dataUrl.split(',')[1];
-        const compressedSizeMB = (base64Data.length / 1024 / 1024).toFixed(2);
+        const base64SizeMB = (base64Data.length / 1024 / 1024).toFixed(2);
         const originalSizeMB = (file.size / 1024 / 1024).toFixed(2);
         
-        console.log(`Image processed: ${originalSizeMB}MB → ${compressedSizeMB}MB base64 (${width}x${height}, quality ${quality.toFixed(2)})`);
-        console.log(`Type: ${inscriptionType}, Encrypted: ${isEncrypted}`);
+        console.log(`Image compressed: ${originalSizeMB}MB → ${base64SizeMB}MB base64 (${canvas.width}x${canvas.height}, quality ${quality.toFixed(2)})`);
+        console.log(`Type: ${inscriptionType}, Encrypted: ${isEncrypted}, Target limit: ${maxSizeMB}MB`);
         
-        // Final check - ensure we're under 5MB transaction limit
-        const estimatedTxSize = base64Data.length + 300; // Minimal overhead
-        const txLimitMB = 4.99; // Very close to 5MB limit
-        if (estimatedTxSize > txLimitMB * 1024 * 1024) {
-          reject(new Error(`Image still too large: ${(estimatedTxSize / 1024 / 1024).toFixed(2)}MB. Maximum is ${txLimitMB}MB.`));
+        // Final safety check
+        const estimatedTxSize = base64Data.length + 300;
+        if (estimatedTxSize > 4.98 * 1024 * 1024) {
+          reject(new Error(`Compressed data too large: ${base64SizeMB}MB. Please use a smaller image.`));
           return;
         }
         
