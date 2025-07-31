@@ -1,8 +1,8 @@
 import React from 'react';
 
 interface InscriptionTypeSelectorProps {
-  inscriptionType: 'text' | 'image' | 'profile' | 'profile2';
-  setInscriptionType: (type: 'text' | 'image' | 'profile' | 'profile2') => void;
+  inscriptionType: 'text' | 'image' | 'profile' | 'profile2' | 'largeProfile';
+  setInscriptionType: (type: 'text' | 'image' | 'profile' | 'profile2' | 'largeProfile') => void;
 }
 
 export const InscriptionTypeSelector: React.FC<InscriptionTypeSelectorProps> = ({
@@ -10,7 +10,7 @@ export const InscriptionTypeSelector: React.FC<InscriptionTypeSelectorProps> = (
   setInscriptionType
 }) => {
   const types: Array<{
-    value: 'text' | 'image' | 'profile' | 'profile2';
+    value: 'text' | 'image' | 'profile' | 'profile2' | 'largeProfile';
     label: string;
     icon: string;
     description: string;
@@ -38,6 +38,12 @@ export const InscriptionTypeSelector: React.FC<InscriptionTypeSelectorProps> = (
       label: 'Profile2',
       icon: '🎨',
       description: 'Profile with background'
+    },
+    {
+      value: 'largeProfile',
+      label: 'Large Profile',
+      icon: '📦',
+      description: 'Large files (10MB+)'
     }
   ];
 
@@ -46,12 +52,12 @@ export const InscriptionTypeSelector: React.FC<InscriptionTypeSelectorProps> = (
       <label className="block text-sm font-medium text-gray-300 mb-2">
         Inscription Type
       </label>
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         {types.map((type) => (
           <button
             key={type.value}
             onClick={() => setInscriptionType(type.value)}
-            className={`flex-1 px-4 py-3 rounded-lg font-medium transition-all ${
+            className={`flex-1 min-w-[120px] px-4 py-3 rounded-lg font-medium transition-all ${
               inscriptionType === type.value
                 ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/25'
                 : 'bg-gray-600 text-gray-300 hover:bg-gray-500'

@@ -5,7 +5,6 @@ import { imageToBase64 } from './imageUtils';
 import { calculateTransactionFee, fetchNetworkFeeRate } from './feeCalculator';
 import { BlogEncryption, EncryptionLevel } from './BlogEncryption';
 
-
 interface CreateInscriptionParams {
   inscriptionType: 'text' | 'image' | 'profile' | 'profile2';
   textData: string;

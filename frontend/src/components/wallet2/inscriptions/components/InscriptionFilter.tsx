@@ -1,9 +1,9 @@
 import React from 'react';
-import { InscriptionData } from './ViewInscriptions';
+import { InscriptionData } from '../ViewInscriptions';
 
 interface InscriptionFilterProps {
-  inscriptionFilter: 'all' | 'text' | 'image' | 'profile' | 'profile2';
-  setInscriptionFilter: (filter: 'all' | 'text' | 'image' | 'profile' | 'profile2') => void;
+  inscriptionFilter: 'all' | 'text' | 'image' | 'profile' | 'profile2' | 'largeProfile';
+  setInscriptionFilter: (filter: 'all' | 'text' | 'image' | 'profile' | 'profile2' | 'largeProfile') => void;
   inscriptions: InscriptionData[];
 }
 
@@ -13,7 +13,7 @@ export const InscriptionFilter: React.FC<InscriptionFilterProps> = ({
   inscriptions
 }) => {
   const filterOptions: Array<{
-    value: 'all' | 'text' | 'image' | 'profile' | 'profile2';
+    value: 'all' | 'text' | 'image' | 'profile' | 'profile2' | 'largeProfile';
     label: string;
     icon: string;
   }> = [
@@ -21,7 +21,8 @@ export const InscriptionFilter: React.FC<InscriptionFilterProps> = ({
     { value: 'text', label: 'Text', icon: '📝' },
     { value: 'image', label: 'Image', icon: '🖼️' },
     { value: 'profile', label: 'Profile', icon: '👤' },
-    { value: 'profile2', label: 'Profile2', icon: '🎨' }
+    { value: 'profile2', label: 'Profile2', icon: '🎨' },
+    { value: 'largeProfile', label: 'Large Profile', icon: '📦' }
   ];
 
   const getCount = (type: 'all' | 'text' | 'image' | 'profile' | 'profile2') => {

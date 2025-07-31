@@ -3,6 +3,7 @@ import { InscriptionData } from './ViewInscriptions';
 import { InscriptionTextView } from './InscriptionTextView';
 import { InscriptionImageView } from './InscriptionImageView';
 import { InscriptionProfileView } from './InscriptionProfileView';
+import { InscriptionLargeProfileView } from './InscriptionLargeProfileView';
 import { getEncryptionLevelLabel } from '../utils/BlogEncryption';
 
 interface InscriptionDetailProps {
@@ -26,6 +27,7 @@ export const InscriptionDetail: React.FC<InscriptionDetailProps> = ({
       case 'image': return '🖼️';
       case 'profile': return '👤';
       case 'profile2': return '🎨';
+      case 'largeProfile': return '📦';
       default: return '📄';
     }
   };
@@ -103,6 +105,17 @@ export const InscriptionDetail: React.FC<InscriptionDetailProps> = ({
                 txid={inscription.txid}
                 size={inscription.size}
                 isProfile2={inscription.inscriptionType === 'profile2'}
+              />
+            )}
+
+            {inscription.inscriptionType === 'largeProfile' && (
+              <InscriptionLargeProfileView
+                content={inscriptionContent}
+                timestamp={inscription.timestamp}
+                txid={inscription.txid}
+                size={inscription.size}
+                network={network}
+                bcatInfo={inscription.bcatInfo}
               />
             )}
 

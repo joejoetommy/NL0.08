@@ -6,18 +6,23 @@ import { InscriptionDetail } from './InscriptionDetail';
 import { fetchInscriptionsFromChain } from '../utils/inscriptionFetcher';
 import { BlogEncryption, EncryptionLevel } from '../utils/BlogEncryption';
 
+
 export interface InscriptionData {
   id: number;
   txid: string;
   vout: number;
   timestamp: Date;
-  inscriptionType: 'text' | 'image' | 'profile' | 'profile2' | 'unknown';
+  inscriptionType: 'text' | 'image' | 'profile' | 'profile2' | 'largeProfile' | 'unknown';
   content?: any;
   size: number;
   origin: string;
   scriptHex?: string;
   encryptionLevel?: EncryptionLevel;
   encrypted?: boolean;
+  bcatInfo?: {
+    chunks: string[];
+    metadata: any;
+  };
 }
 
 interface ViewInscriptionsProps {
@@ -31,7 +36,7 @@ export const ViewInscriptions: React.FC<ViewInscriptionsProps> = ({ network }) =
   const [selectedInscription, setSelectedInscription] = useState<InscriptionData | null>(null);
   const [inscriptionContent, setInscriptionContent] = useState<any>(null);
   const [loadingContent, setLoadingContent] = useState(false);
-  const [inscriptionFilter, setInscriptionFilter] = useState<'all' | 'text' | 'image' | 'profile' | 'profile2'>('all');
+  const [inscriptionFilter, setInscriptionFilter] = useState<'all' | 'text' | 'image' | 'profile' | 'profile2' | 'largeProfile'>('all');
 
   const { keyData, whatsOnChainApiKey, getKeySegmentForLevel } = useWalletStore();
 

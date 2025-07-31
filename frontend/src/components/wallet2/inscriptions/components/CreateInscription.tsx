@@ -4,13 +4,15 @@ import { CreateTextInscription } from './CreateTextInscription';
 import { CreateImageInscription } from './CreateImageInscription';
 import { CreateProfileInscription } from './CreateProfileInscription';
 import { CreateProfile2Inscription } from './CreateProfile2Inscription';
+import { CreateLargeProfileInscription } from './CreateLargeProfileInscription';
 import { InscriptionTypeSelector } from './InscriptionTypeSelector';
 import { EncryptionOptions } from './EncryptionOptions';
 import { TransactionStatus } from './TransactionStatus';
 import { WalletInfo } from './WalletInfo';
 import { BlogEncryption, EncryptionLevel, getEncryptionLevelColor, getEncryptionLevelLabel } from  '../utils/BlogEncryption';
 import { createInscription } from '../utils/inscriptionCreator';
-// getEncryptionLevelColor getEncryptionLevelLabel 
+// getEncryptionLevelColor getEncryptionLevelLabel  CreateLargeProfileInscription   import { InscriptionLargeProfileView } from './InscriptionLargeProfileView';
+
 
 
 interface CreateInscriptionProps {
@@ -18,7 +20,7 @@ interface CreateInscriptionProps {
 }
 
 export const CreateInscription: React.FC<CreateInscriptionProps> = ({ network }) => {
-  const [inscriptionType, setInscriptionType] = useState<'text' | 'image' | 'profile' | 'profile2'>('text');
+  const [inscriptionType, setInscriptionType] = useState<'text' | 'image' | 'profile' | 'profile2' | 'largeProfile'>('text');
   const [textData, setTextData] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
@@ -84,7 +86,7 @@ export const CreateInscription: React.FC<CreateInscriptionProps> = ({ network })
 
   // Auto-encrypt data when inputs or encryption level change
   useEffect(() => {
-    if (encryptionLevel > 0 && blogKeyHistory.current) {
+    if (encryptionLevel > 0 && blogKeyHistory.current && inscriptionType !== 'largeProfile') {
       encryptCurrentData();
     } else {
       setEncryptedData('');
@@ -276,13 +278,16 @@ export const CreateInscription: React.FC<CreateInscriptionProps> = ({ network })
             setInscriptionType={setInscriptionType}
           />
 
-          <EncryptionOptions
-            encryptionLevel={encryptionLevel}
-            setEncryptionLevel={setEncryptionLevel}
-            showEncryptionOptions={showEncryptionOptions}
-            setShowEncryptionOptions={setShowEncryptionOptions}
-            blogKeyHistory={blogKeyHistory}
-          />
+          {/* Show encryption options for all types except largeProfile */}
+          {inscriptionType !== 'largeProfile' && (
+            <EncryptionOptions
+              encryptionLevel={encryptionLevel}
+              setEncryptionLevel={setEncryptionLevel}
+              showEncryptionOptions={showEncryptionOptions}
+              setShowEncryptionOptions={setShowEncryptionOptions}
+              blogKeyHistory={blogKeyHistory}
+            />
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             {/* Left Side - Original Data Input */}
@@ -336,144 +341,204 @@ export const CreateInscription: React.FC<CreateInscriptionProps> = ({ network })
                 />
               )}
 
-              <WalletInfo 
-                keyData={keyData}
-                balance={balance}
-                blogKeyHistory={blogKeyHistory}
-              />
+              {inscriptionType === 'largeProfile' && (
+                <CreateLargeProfileInscription
+                  keyData={keyData}
+                  network={network}
+                  whatsOnChainApiKey={whatsOnChainApiKey}
+                  currentFeeRate={currentFeeRate}
+                  balance={balance}
+                  lastTransactionTime={lastTransactionTime}
+                  setStatus={setStatus}
+                  setLastTxid={setLastTxid}
+                  setLastTransactionTime={setLastTransactionTime}
+                />
+              )}
 
-              {/* Create Button (shows for both encrypted and non-encrypted) */}
-              <button
-                onClick={handleCreateInscription}
-                disabled={loading || !keyData.privateKey || balance.confirmed < 500 || 
-                  (inscriptionType === 'image' && !imageFile) ||
-                  (inscriptionType === 'profile2' && !profileImageFile && !backgroundImageFile) ||
-                  (Date.now() - lastTransactionTime < 5000) ||
-                  (encryptionLevel > 0 && (!blogKeyHistory.current || isEncrypting || !encryptedData))}
-                className="w-full py-3 px-6 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {(() => {
-                  if (loading) {
-                    return encryptionLevel > 0 ? 'Creating Encrypted Inscription...' : 'Creating Inscription...';
-                  }
-                  if (isEncrypting) {
-                    return 'Encrypting...';
-                  }
-                  if (Date.now() - lastTransactionTime < 5000) {
-                    return `Wait ${Math.ceil((5000 - (Date.now() - lastTransactionTime)) / 1000)}s...`;
-                  }
-                  if (encryptionLevel > 0) {
-                    return `Create Encrypted ${inscriptionType.charAt(0).toUpperCase() + inscriptionType.slice(1)} Ordinal`;
-                  }
-                  return `Create ${inscriptionType.charAt(0).toUpperCase() + inscriptionType.slice(1)} Ordinal`;
-                })()}
-              </button>
+              {inscriptionType !== 'largeProfile' && (
+                <>
+                  <WalletInfo 
+                    keyData={keyData}
+                    balance={balance}
+                    blogKeyHistory={blogKeyHistory}
+                  />
+
+                  {/* Create Button (shows for both encrypted and non-encrypted) */}
+                  <button
+                    onClick={handleCreateInscription}
+                    disabled={loading || !keyData.privateKey || balance.confirmed < 500 || 
+                      (inscriptionType === 'image' && !imageFile) ||
+                      (inscriptionType === 'profile2' && !profileImageFile && !backgroundImageFile) ||
+                      (Date.now() - lastTransactionTime < 5000) ||
+                      (encryptionLevel > 0 && (!blogKeyHistory.current || isEncrypting || !encryptedData))}
+                    className="w-full py-3 px-6 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {(() => {
+                      if (loading) {
+                        return encryptionLevel > 0 ? 'Creating Encrypted Inscription...' : 'Creating Inscription...';
+                      }
+                      if (isEncrypting) {
+                        return 'Encrypting...';
+                      }
+                      if (Date.now() - lastTransactionTime < 5000) {
+                        return `Wait ${Math.ceil((5000 - (Date.now() - lastTransactionTime)) / 1000)}s...`;
+                      }
+                      if (encryptionLevel > 0) {
+                        return `Create Encrypted ${inscriptionType.charAt(0).toUpperCase() + inscriptionType.slice(1)} Ordinal`;
+                      }
+                      return `Create ${inscriptionType.charAt(0).toUpperCase() + inscriptionType.slice(1)} Ordinal`;
+                    })()}
+                  </button>
+                </>
+              )}
             </div>
 
             {/* Right Side - Encrypted Data Display */}
             <div className="space-y-4">
-              <h3 className="text-lg font-medium text-white">
-                {encryptionLevel > 0 ? 'Encrypted Data' : 'Preview'}
-              </h3>
-              
-              {/* Encrypted Data Display */}
-              {encryptionLevel > 0 ? (
-                <div className="h-full">
-                  {isEncrypting ? (
-                    <div className="flex items-center justify-center h-32">
-                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
-                      <span className="ml-2 text-gray-300">Encrypting...</span>
+              {inscriptionType === 'largeProfile' ? (
+                <>
+                  <h3 className="text-lg font-medium text-white">BCAT Protocol Info</h3>
+                  <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg">
+                    <h4 className="text-sm font-medium text-purple-400 mb-2">How BCAT Works</h4>
+                    <p className="text-xs text-gray-300 mb-3">
+                      BCAT (Bitcoin Concatenation) protocol allows storing large files on-chain by splitting them into multiple transactions.
+                    </p>
+                    <div className="space-y-2">
+                      <div className="flex items-start gap-2">
+                        <span className="text-purple-400">1.</span>
+                        <p className="text-xs text-gray-300">File is split into 9MB chunks</p>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="text-purple-400">2.</span>
+                        <p className="text-xs text-gray-300">Each chunk stored in separate TX</p>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="text-purple-400">3.</span>
+                        <p className="text-xs text-gray-300">Main TX contains thumbnail + references</p>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="text-purple-400">4.</span>
+                        <p className="text-xs text-gray-300">Files reassembled using TX IDs</p>
+                      </div>
                     </div>
-                  ) : encryptedData ? (
-                    <div className="space-y-4">
-                      <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium text-green-400">Encrypted Data</span>
-                          <span className={`text-xs px-2 py-1 rounded bg-${getEncryptionLevelColor(encryptionLevel)}-600 text-white`}
-                            style={{
-                              backgroundColor: {
-                                0: '#6B7280',
-                                1: '#F59E0B',
-                                2: '#EAB308',
-                                3: '#6366F1',
-                                4: '#A855F7',
-                                5: '#EF4444'
-                              }[encryptionLevel]
-                            }}
-                          >
-                            Level {encryptionLevel}
-                          </span>
+                    <div className="mt-3 p-2 bg-purple-900 bg-opacity-30 rounded">
+                      <p className="text-xs text-purple-300">
+                        💡 Perfect for videos, large images, archives, and any file over 10MB
+                      </p>
+                    </div>
+                  </div>
+                  <WalletInfo 
+                    keyData={keyData}
+                    balance={balance}
+                    blogKeyHistory={blogKeyHistory}
+                  />
+                </>
+              ) : (
+                <>
+                  <h3 className="text-lg font-medium text-white">
+                    {encryptionLevel > 0 ? 'Encrypted Data' : 'Preview'}
+                  </h3>
+                  
+                  {/* Encrypted Data Display */}
+                  {encryptionLevel > 0 ? (
+                    <div className="h-full">
+                      {isEncrypting ? (
+                        <div className="flex items-center justify-center h-32">
+                          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+                          <span className="ml-2 text-gray-300">Encrypting...</span>
                         </div>
-                        <pre className="text-xs font-mono text-green-400 break-all max-h-64 overflow-y-auto">
-                          {encryptedData.substring(0, 500)}
-                          {encryptedData.length > 500 && '...'}
-                        </pre>
-                      </div>
-                      
-                      <div className="p-3 bg-gray-800 rounded-lg space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-400">Encrypted Size:</span>
-                          <span className="text-gray-300">
-                            {(encryptedSize / 1024).toFixed(2)} KB
-                            {encryptedSize > 1024 * 1024 && ` (${(encryptedSize / 1024 / 1024).toFixed(2)} MB)`}
-                          </span>
+                      ) : encryptedData ? (
+                        <div className="space-y-4">
+                          <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm font-medium text-green-400">Encrypted Data</span>
+                              <span className={`text-xs px-2 py-1 rounded bg-${getEncryptionLevelColor(encryptionLevel)}-600 text-white`}
+                                style={{
+                                  backgroundColor: {
+                                    0: '#6B7280',
+                                    1: '#F59E0B',
+                                    2: '#EAB308',
+                                    3: '#6366F1',
+                                    4: '#A855F7',
+                                    5: '#EF4444'
+                                  }[encryptionLevel]
+                                }}
+                              >
+                                Level {encryptionLevel}
+                              </span>
+                            </div>
+                            <pre className="text-xs font-mono text-green-400 break-all max-h-64 overflow-y-auto">
+                              {encryptedData.substring(0, 500)}
+                              {encryptedData.length > 500 && '...'}
+                            </pre>
+                          </div>
+                          
+                          <div className="p-3 bg-gray-800 rounded-lg space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-400">Encrypted Size:</span>
+                              <span className="text-gray-300">
+                                {(encryptedSize / 1024).toFixed(2)} KB
+                                {encryptedSize > 1024 * 1024 && ` (${(encryptedSize / 1024 / 1024).toFixed(2)} MB)`}
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-400">Est. Transaction Size:</span>
+                              <span className="text-gray-300">
+                                {(() => {
+                                  const { calculateTransactionFee } = require('../utils/feeCalculator');
+                                  const { estimatedSize } = calculateTransactionFee(1, 2, encryptedSize, currentFeeRate);
+                                  return `${(estimatedSize / 1024 / 1024).toFixed(2)} MB / 5.0 MB`;
+                                })()}
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-400">Estimated Fee:</span>
+                              <span className="text-gray-300">
+                                {(() => {
+                                  const { calculateTransactionFee } = require('../utils/feeCalculator');
+                                  const { fee } = calculateTransactionFee(1, 2, encryptedSize, currentFeeRate);
+                                  return `${fee.toLocaleString()} sats`;
+                                })()}
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-400">Access Level:</span>
+                              <span className="text-gray-300">{getEncryptionLevelLabel(encryptionLevel)}</span>
+                            </div>
+                          </div>
+                          
+                          <div className="p-3 bg-indigo-900 bg-opacity-30 rounded-lg border border-indigo-700">
+                            <p className="text-xs text-indigo-300">
+                              🔒 This data will be encrypted on-chain. Only holders of your blog key with level {encryptionLevel} access or higher can decrypt it.
+                            </p>
+                          </div>
                         </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-400">Est. Transaction Size:</span>
-                          <span className="text-gray-300">
-                            {(() => {
-                              const { calculateTransactionFee } = require('../utils/feeCalculator');
-                              const { estimatedSize } = calculateTransactionFee(1, 2, encryptedSize, currentFeeRate);
-                              return `${(estimatedSize / 1024 / 1024).toFixed(2)} MB / 5.0 MB`;
-                            })()}
-                          </span>
+                      ) : (
+                        <div className="flex items-center justify-center h-32 text-gray-500">
+                          <p className="text-sm">Enter data to see encrypted preview</p>
                         </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-400">Estimated Fee:</span>
-                          <span className="text-gray-300">
-                            {(() => {
-                              const { calculateTransactionFee } = require('../utils/feeCalculator');
-                              const { fee } = calculateTransactionFee(1, 2, encryptedSize, currentFeeRate);
-                              return `${fee.toLocaleString()} sats`;
-                            })()}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-400">Access Level:</span>
-                          <span className="text-gray-300">{getEncryptionLevelLabel(encryptionLevel)}</span>
-                        </div>
-                      </div>
-                      
-                      <div className="p-3 bg-indigo-900 bg-opacity-30 rounded-lg border border-indigo-700">
-                        <p className="text-xs text-indigo-300">
-                          🔒 This data will be encrypted on-chain. Only holders of your blog key with level {encryptionLevel} access or higher can decrypt it.
-                        </p>
-                      </div>
+                      )}
                     </div>
                   ) : (
-                    <div className="flex items-center justify-center h-32 text-gray-500">
-                      <p className="text-sm">Enter data to see encrypted preview</p>
+                    // Non-encrypted preview
+                    <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg">
+                      <p className="text-sm text-gray-400 mb-2">Data Preview (Unencrypted)</p>
+                      {inscriptionType === 'text' && textData && (
+                        <pre className="text-xs text-gray-300 whitespace-pre-wrap">{textData}</pre>
+                      )}
+                      {inscriptionType === 'image' && imagePreview && (
+                        <img src={imagePreview} alt="Preview" className="max-h-32 mx-auto rounded" />
+                      )}
+                      {(inscriptionType === 'profile' || inscriptionType === 'profile2') && (
+                        <div className="text-sm text-gray-300 space-y-1">
+                          <p><span className="text-gray-400">Username:</span> {profileData.username || 'Not set'}</p>
+                          <p><span className="text-gray-400">Title:</span> {profileData.title || 'Not set'}</p>
+                          <p><span className="text-gray-400">Bio:</span> {profileData.bio || 'Not set'}</p>
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
-              ) : (
-                // Non-encrypted preview
-                <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg">
-                  <p className="text-sm text-gray-400 mb-2">Data Preview (Unencrypted)</p>
-                  {inscriptionType === 'text' && textData && (
-                    <pre className="text-xs text-gray-300 whitespace-pre-wrap">{textData}</pre>
-                  )}
-                  {inscriptionType === 'image' && imagePreview && (
-                    <img src={imagePreview} alt="Preview" className="max-h-32 mx-auto rounded" />
-                  )}
-                  {(inscriptionType === 'profile' || inscriptionType === 'profile2') && (
-                    <div className="text-sm text-gray-300 space-y-1">
-                      <p><span className="text-gray-400">Username:</span> {profileData.username || 'Not set'}</p>
-                      <p><span className="text-gray-400">Title:</span> {profileData.title || 'Not set'}</p>
-                      <p><span className="text-gray-400">Bio:</span> {profileData.bio || 'Not set'}</p>
-                    </div>
-                  )}
-                </div>
+                </>
               )}
             </div>
           </div>

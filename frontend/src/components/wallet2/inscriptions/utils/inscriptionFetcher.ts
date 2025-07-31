@@ -47,7 +47,7 @@ export const fetchInscriptionsFromChain = async (
           console.log(`Found 1 sat output in ${tx.tx_hash}:${i}`);
           
           const scriptHex = vout.scriptPubKey?.hex || '';
-          const inscriptionData = parseInscriptionFromScript(scriptHex, tx.tx_hash, i, tx.time);
+          const inscriptionData = parseInscriptionFromScript(scriptHex, tx.tx_hash, i, tx.time, txData);
           
           if (inscriptionData) {
             foundInscriptions.push(inscriptionData);
@@ -68,16 +68,56 @@ const parseInscriptionFromScript = (
   scriptHex: string, 
   txid: string, 
   vout: number, 
-  timestamp?: number
+  timestamp?: number,
+  txData?: any
 ): InscriptionData | null => {
-  let inscriptionType: 'text' | 'image' | 'profile' | 'profile2' | 'unknown' = 'unknown';
+  let inscriptionType: 'text' | 'image' | 'profile' | 'profile2' | 'largeProfile' | 'unknown' = 'unknown';
   let content: any = null;
   let encrypted = false;
   let encryptionLevel: EncryptionLevel = 0;
+  let bcatInfo: { chunks: string[]; metadata: any } | undefined;
   
   try {
+    // Check for BCAT inscriptions (they have OP_RETURN with BCAT prefix in second output)
+    if (txData && txData.vout && txData.vout.length > 1) {
+      const opReturnOutput = txData.vout.find((out: any) => 
+        out.scriptPubKey?.asm?.startsWith('OP_RETURN') || 
+        out.scriptPubKey?.hex?.startsWith('6a')
+      );
+      
+      if (opReturnOutput && opReturnOutput.scriptPubKey?.hex) {
+        const opReturnHex = opReturnOutput.scriptPubKey.hex;
+        // Check for BCAT prefix (15DHFxWZJT58f9nhyGnsRBqrgwK4W6h4Up)
+        const bcatPrefixHex = '313544484678575a4a5435386639336e6879476e7352427172677757344b57366834557';
+        
+        if (opReturnHex.includes(bcatPrefixHex)) {
+          inscriptionType = 'largeProfile';
+          
+          // Extract chunk transaction IDs and metadata
+          try {
+            // Parse BCAT data from OP_RETURN
+            const chunks: string[] = [];
+            let metadata: any = {};
+            
+            // Skip OP_RETURN and BCAT prefix to get to chunk data
+            // This is simplified - actual parsing would need to handle push data opcodes properly
+            
+            bcatInfo = { chunks, metadata };
+          } catch (e) {
+            console.error('Error parsing BCAT data:', e);
+          }
+          
+          // Get thumbnail from first output if it's an inscription
+          if (scriptHex.includes('746578742f706c61696e') || scriptHex.includes('696d6167652f')) {
+            // Extract thumbnail data if present
+            content = 'thumbnail'; // Placeholder - would extract actual thumbnail
+          }
+        }
+      }
+    }
+    
     // Check for text/plain inscriptions
-    if (scriptHex.includes('746578742f706c61696e')) { // "text/plain"
+    if (inscriptionType === 'unknown' && scriptHex.includes('746578742f706c61696e')) { // "text/plain"
       inscriptionType = 'text';
       const textMatch = scriptHex.match(/746578742f706c61696e[0-9a-f]*?00([0-9a-f]+?)68/);
       if (textMatch && textMatch[1]) {
@@ -160,7 +200,8 @@ const parseInscriptionFromScript = (
         origin: `${txid}_${vout}`,
         scriptHex,
         encrypted,
-        encryptionLevel: encryptionLevel as EncryptionLevel
+        encryptionLevel: encryptionLevel as EncryptionLevel,
+        bcatInfo
       };
     }
   } catch (e) {

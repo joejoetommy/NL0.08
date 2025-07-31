@@ -1,13 +1,11 @@
 import React from 'react';
-import { InscriptionData } from './ViewInscriptions';
-import { getEncryptionLevelColor } from '../utils/BlogEncryption';
+import { InscriptionData } from '../ViewInscriptions';
+import { getEncryptionLevelColor } from '../../utils/BlogEncryption';
 
 interface InscriptionGridProps {
   inscriptions: InscriptionData[];
   onSelectInscription: (inscription: InscriptionData) => void;
 }
-
-
 
 export const InscriptionGrid: React.FC<InscriptionGridProps> = ({
   inscriptions,
@@ -19,6 +17,22 @@ export const InscriptionGrid: React.FC<InscriptionGridProps> = ({
       case 'image': return '🖼️';
       case 'profile': return '👤';
       case 'profile2': return '🎨';
+      case 'largeProfile': return '📦';
+      case 'largeProfile':
+        return (
+          <div className="h-32 bg-gray-900 rounded p-3">
+            <div className="text-center h-full flex flex-col items-center justify-center">
+              <span className="text-4xl mb-2">📦</span>
+              <p className="text-xs text-gray-400">Large Profile (BCAT)</p>
+              {inscription.bcatInfo && (
+                <p className="text-xs text-gray-500 mt-1">
+                  {inscription.bcatInfo.chunks.length} chunks
+                </p>
+              )}
+            </div>
+          </div>
+        );
+
       default: return '📄';
     }
   };
