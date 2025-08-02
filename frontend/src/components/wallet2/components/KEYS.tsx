@@ -9,13 +9,19 @@
 //   jesus is king    lvl 5 8eb4cafed6b5a3e0a893441e3cc17146af8d32c6ee96498baa986dbaa763adaa 
 // image = Ordinal created (Encrypted: Level 1 - Friends)! TXID: a875879778801006ed88514e470f405808a2a5e4c4ab1d1fd89bc18fa8acd71a   https://test.whatsonchain.com/tx/a875879778801006ed88514e470f405808a2a5e4c4ab1d1fd89bc18fa8acd71a
 
+// OLD BCAT = https://test.whatsonchain.com/tx/6f75902e67415ae212f3989bd76a2d1e291b2a51b0c7db2a71022b9bca4b217d?tab=details
+// OLD BCAT =   https://test.whatsonchain.com/tx/1da75f63ac910b1d8fee5c5a3153daad342ccd441222f0fa0187be27b430e34d?tab=details
+//     OLD BCAT =       https://test.whatsonchain.com/tx/475658d0678a244c6f12c7fcc3d77a40a99c0573d3c1dcf8ad57f2f5bfe8b0da
+//    BCAT TXID'S =      https://test.whatsonchain.com/tx/c7ad89834e4169b0fb0bc0484f90a0a68378cb365f8bc22c95f5b60fd45dd65f                                https://test.whatsonchain.com/tx/6d3f4e420560c70b80be0da620d7d3f505174a1d18c5478ded3c93cf45fbeb63
 
 // 3rd key     dff16672174569c206d9303c8ad427c4383addbcaa31991ea2a9f2cd2861def1   n1VtTgFqT6Kra6iY93YH8SA8ZqxvNC21Bj  
 // EncryptKey= abce8138a4d0c920f63ba3983e6e9d9562d81ac502af5b65d645bef1396c9f5d   TXID= 
 // 
 
 
-// 4th key   671d6de03a9dbee6c691b4cb5afdf219f3bfb3b70afef3e2ea8ee76f0196bd53  mw62mij7PZzdxhMHPx85EEp3XbwbuLGp9H 
+// 4th key   671d6de03a9dbee6c691b4cb5afdf219f3bfb3b70afef3e2ea8ee76f0196bd53  
+// 15DHFxWZJT58f9nhyGnsRBqrgwK4W6h4Up
+// mw62mij7PZzdxhMHPx85EEp3XbwbuLGp9H 
 // EncryptKey=  abce8138a4d0c920f63ba3983e6e9d9562d81ac502af5b65d645bef1396c9f5d TXID= 
 
 
@@ -25,6 +31,16 @@
 // 7th key 08cf0bba0b27030b1dd02bd01cd9293385878c08edd1eb53fe586d06f47476d8  n3qDYwh6hKKCiu5R7fX7GuWWgdyJ1RMc9r EncryptKey=   TXID= 
 // 8th key 853f50b1cd687d5d79b07ced6eeb0a3c7f99a62eedffa27eaed7cb5b0285310e   mnSPX9gQS2K8KCNPp9Vp3jzS3aBWgWRawc EncryptKey=   TXID= 
 // 9th key 3e426560b9bf599f4fc957bb15a9299bb12ef1b4afa17a53305edaa8a9ab811d   mvFSzgiWXqdQbxRzp4uHzWcmKQVVdV7o8G
+
+// 10th key  fbd5ed18bc2e8d2d3d91523afb146ea6f96723fa8a0fc5c50045d26d2fa3b252   mqE8JUcUqEVCHcdqb8LPhQ7LYbX7wLpi1e
+// 11th key  dc9649804fec4115611e97a8fe8323b10cb42e1edb65302c9cd73b3a29a6d122   mqEH6d9smSioabfDU4j7ZcV9EE39H6zxGp
+// 12th key  7417e6f36474fd320e3a06724c68bfa5d0990347c489b3143dbc48be92b27b7c   muX9nAHRTewEtN3xYooJBDVYBgUC1YkCuh
+
+
+//  BlackList 13th key f59b9fbdd55cbddb78dfa792fd9c2f1fa10f793247cc2b37d47bedca0bcb7789   mnQ2QkxsiDcEtGL6zZjrqa9itJswUdLTtB
+//  BlackList 14th key  ea9409c91df36b73f702f419bf1170d336a2c98cb4cb97dce25a56cc2799d648  mvyPaUqSRJrF1vBEsMTGioasBxSm36tZz9
+//  BlackList 15th key  1e72d3b72461c30281c296dcf1d251dd1a14e41cb3bb10c13da1dea0e55092d3  moGkS3541df27evqLGqU6P3JxpqyN83tvQ
+//  BlackList 16th key  96180d830f21ed52375f5681ef6004be4c71deaba1224cca60db407f0ee8b90e  myD8tuvKSghFP2gsJo1eNcq4zfBZNoxSiY
 //////////////////////////////////////////
 
 // 1st key
@@ -90,6 +106,124 @@ HjHw1tEf1t7rGRydPEGBybxZrmKpodGU7P7R6GR5wSLFp3JGvHytqZDWbMs5A15HSJYv
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+            File 'feeCalculator.ts'  = ()
+File 'imageUtils.ts'  = ()
+
+
+
+
+        File 'inscriptionTypeSelector.tsx'  = ()
+File 'inscriptionCreator.ts'  = ()
+File 'inscriptionFetcher.ts'  = ()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+'CreateLargeProfileInscription.tsx' = ().
+ File ' InscriptionFilter.tsx' = (import React from 'react'; import { InscriptionData } from '../ViewInscriptions';  interface InscriptionFilterProps {   inscriptionFilter: 'all' | 'text' | 'image' | 'profile' | 'profile2' | 'largeProfile';   setInscriptionFilter: (filter: 'all' | 'text' | 'image' | 'profile' | 'profile2' | 'largeProfile') => void;   inscriptions: InscriptionData[]; }  export const InscriptionFilter: React.FC<InscriptionFilterProps> = ({   inscriptionFilter,   setInscriptionFilter,   inscriptions }) => {   const filterOptions: Array<{     value: 'all' | 'text' | 'image' | 'profile' | 'profile2' | 'largeProfile';     label: string;     icon: string;   }> = [     { value: 'all', label: 'All', icon: '📋' },     { value: 'text', label: 'Text', icon: '📝' },     { value: 'image', label: 'Image', icon: '🖼️' },     { value: 'profile', label: 'Profile', icon: '👤' },     { value: 'profile2', label: 'Profile2', icon: '🎨' },     { value: 'largeProfile', label: 'Large Profile', icon: '📦' }   ];    const getCount = (type: 'all' | 'text' | 'image' | 'profile' | 'profile2') => {     if (type === 'all') return inscriptions.length;     return inscriptions.filter(i => i.inscriptionType === type).length;   };    return (     <div className="flex gap-2 mb-4 flex-wrap">       {filterOptions.map((option) => {         const count = getCount(option.value);         const isActive = inscriptionFilter === option.value;                  return (           <button             key={option.value}             onClick={() => setInscriptionFilter(option.value)}             disabled={count === 0 && option.value !== 'all'}             className={px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${               isActive                 ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/25'                 : count === 0                 ? 'bg-gray-700 text-gray-500 cursor-not-allowed'                 : 'bg-gray-600 text-gray-300 hover:bg-gray-500'             }}           >             <span>{option.icon}</span>             <span>{option.label}</span>             <span className={px-1.5 py-0.5 rounded text-xs ${               isActive ? 'bg-purple-600' : 'bg-gray-700'             }}>               {count}             </span>           </button>         );       })}     </div>   ); };). 
+File 'InscriptionGrid.tsx' = (). 
+File 'InscriptionDetail.tsx' = ()
+
+
+
+
+
+
+File 'InscriptionLargeProfileView.tsx'  = ()
+File 'CreateInscription.tsx'  = ()
+File 'ViewInscriptions.tsx'  = ()
+            File 'BlogEncryption.ts'  = ()
 
 
 

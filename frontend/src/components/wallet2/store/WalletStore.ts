@@ -77,7 +77,7 @@ interface ProfileToken {
 
 // Blog Key Interfaces
 interface BlogKeySegments {
-  tier1: string;  // First 1/5 (~13 chars) - Level 1
+  tier1: string;  // First 1/5 (~13 chars) - Level 1   address
   tier2: string;  // First 2/5 (~26 chars) - Level 2
   tier3: string;  // First 3/5 (~38 chars) - Level 3
   tier4: string;  // First 4/5 (~51 chars) - Level 4
