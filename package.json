@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "fflate": "^0.8.2",
+    "pdfjs-dist": "^5.4.54",
+    "three": "^0.179.1"
+  }
+}
