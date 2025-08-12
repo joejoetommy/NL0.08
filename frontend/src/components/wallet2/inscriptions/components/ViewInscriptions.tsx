@@ -6,7 +6,7 @@ import { InscriptionDetail } from './InscriptionDetail';
 import { fetchInscriptionsFromChain } from '../utils/inscriptionFetcher';
 import { BlogEncryption, EncryptionLevel } from '../utils/BlogEncryption';
 
-
+// Inscription Type
 export interface InscriptionData {
   id: number;
   txid: string;

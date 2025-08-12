@@ -1,8 +1,8 @@
 import React from 'react';
 
 interface InscriptionTypeSelectorProps {
-  inscriptionType: 'text' | 'image' | 'profile' | 'profile2' | 'largeProfile';
-  setInscriptionType: (type: 'text' | 'image' | 'profile' | 'profile2' | 'largeProfile') => void;
+  inscriptionType: 'text' | 'image' | 'profile' | 'profile2' | 'largeProfile' | 'largeProfile2';
+  setInscriptionType: (type: 'text' | 'image' | 'profile' | 'profile2' | 'largeProfile' | 'largeProfile2') => void;
 }
 
 export const InscriptionTypeSelector: React.FC<InscriptionTypeSelectorProps> = ({
@@ -10,7 +10,7 @@ export const InscriptionTypeSelector: React.FC<InscriptionTypeSelectorProps> = (
   setInscriptionType
 }) => {
   const types: Array<{
-    value: 'text' | 'image' | 'profile' | 'profile2' | 'largeProfile';
+    value: 'text' | 'image' | 'profile' | 'profile2' | 'largeProfile' | 'largeProfile2';
     label: string;
     icon: string;
     description: string;
@@ -44,6 +44,12 @@ export const InscriptionTypeSelector: React.FC<InscriptionTypeSelectorProps> = (
       label: 'Large Profile',
       icon: '📦',
       description: 'Large files (10MB+)'
+    },
+        {
+      value: 'largeProfile2',
+      label: 'Large Profile',
+      icon: '📦',
+      description: 'Large2 files (10MB+)'
     }
   ];
 

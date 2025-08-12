@@ -5,22 +5,20 @@ import { CreateImageInscription } from './CreateImageInscription';
 import { CreateProfileInscription } from './CreateProfileInscription';
 import { CreateProfile2Inscription } from './CreateProfile2Inscription';
 import { CreateLargeProfileInscription } from './CreateLargeProfileInscription';
+import { BCATManager } from './BCATComponent';
 import { InscriptionTypeSelector } from './InscriptionTypeSelector';
 import { EncryptionOptions } from './EncryptionOptions';
 import { TransactionStatus } from './TransactionStatus';
 import { WalletInfo } from './WalletInfo';
 import { BlogEncryption, EncryptionLevel, getEncryptionLevelColor, getEncryptionLevelLabel } from  '../utils/BlogEncryption';
 import { createInscription } from '../utils/inscriptionCreator';
-// getEncryptionLevelColor getEncryptionLevelLabel  CreateLargeProfileInscription   import { InscriptionLargeProfileView } from './InscriptionLargeProfileView';
-
-
 
 interface CreateInscriptionProps {
   network: 'mainnet' | 'testnet';
 }
-
+//   InscriptionTypeSelectorProps Inscription Type
 export const CreateInscription: React.FC<CreateInscriptionProps> = ({ network }) => {
-  const [inscriptionType, setInscriptionType] = useState<'text' | 'image' | 'profile' | 'profile2' | 'largeProfile'>('text');
+  const [inscriptionType, setInscriptionType] = useState<'text' | 'image' | 'profile' | 'profile2' | 'largeProfile' | 'largeProfile2'>('text');
   const [textData, setTextData] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
@@ -86,7 +84,7 @@ export const CreateInscription: React.FC<CreateInscriptionProps> = ({ network })
 
   // Auto-encrypt data when inputs or encryption level change
   useEffect(() => {
-    if (encryptionLevel > 0 && blogKeyHistory.current && inscriptionType !== 'largeProfile') {
+    if (encryptionLevel > 0 && blogKeyHistory.current && inscriptionType !== 'largeProfile' && inscriptionType !== 'largeProfile2') {
       encryptCurrentData();
     } else {
       setEncryptedData('');
@@ -134,7 +132,7 @@ export const CreateInscription: React.FC<CreateInscriptionProps> = ({ network })
           data: base64Data
         };
         contentType = 'image';
-      } else if (inscriptionType === 'profile' || inscriptionType === 'profile2') {
+      } else if (inscriptionType === 'profile' || inscriptionType === 'profile2' || inscriptionType === 'profile4') {
         // Handle profile encryption
         const { imageToBase64 } = await import('../utils/imageUtils');
         const profileDataToSave: any = {
@@ -151,8 +149,8 @@ export const CreateInscription: React.FC<CreateInscriptionProps> = ({ network })
           profileDataToSave.avatar = `data:${profileImageFile.type};base64,${base64Data}`;
         }
         
-        if (inscriptionType === 'profile2' && backgroundImageFile) {
-          const base64Data = await imageToBase64(backgroundImageFile, undefined, true, undefined, 'profile2');
+        if ((inscriptionType === 'profile2' || inscriptionType === 'profile4') && backgroundImageFile) {
+          const base64Data = await imageToBase64(backgroundImageFile, undefined, true, undefined, inscriptionType);
           profileDataToSave.background = `data:${backgroundImageFile.type};base64,${base64Data}`;
         }
         
@@ -278,8 +276,8 @@ export const CreateInscription: React.FC<CreateInscriptionProps> = ({ network })
             setInscriptionType={setInscriptionType}
           />
 
-          {/* Show encryption options for all types except largeProfile */}
-          {inscriptionType !== 'largeProfile' && (
+          {/* Show encryption options for all types except largeProfile and largeProfile2   */}
+          {inscriptionType !== 'largeProfile' && inscriptionType !== 'largeProfile2' && (
             <EncryptionOptions
               encryptionLevel={encryptionLevel}
               setEncryptionLevel={setEncryptionLevel}
@@ -341,6 +339,7 @@ export const CreateInscription: React.FC<CreateInscriptionProps> = ({ network })
                 />
               )}
 
+
               {inscriptionType === 'largeProfile' && (
                 <CreateLargeProfileInscription
                   keyData={keyData}
@@ -355,7 +354,22 @@ export const CreateInscription: React.FC<CreateInscriptionProps> = ({ network })
                 />
               )}
 
-              {inscriptionType !== 'largeProfile' && (
+              {inscriptionType === 'largeProfile2' && (
+                <BCATManager
+                  // BCATManager
+                  keyData={keyData}
+                  network={network}
+              //  whatsOnChainApiKey={whatsOnChainApiKey}
+                  currentFeeRate={currentFeeRate}
+                  balance={balance}
+                  lastTransactionTime={lastTransactionTime}
+                  setStatus={setStatus}
+                  setLastTxid={setLastTxid}
+                  setLastTransactionTime={setLastTransactionTime}
+                />
+              )}
+
+              {inscriptionType !== 'largeProfile' && inscriptionType !== 'largeProfile2' && (
                 <>
                   <WalletInfo 
                     keyData={keyData}
@@ -368,7 +382,7 @@ export const CreateInscription: React.FC<CreateInscriptionProps> = ({ network })
                     onClick={handleCreateInscription}
                     disabled={loading || !keyData.privateKey || balance.confirmed < 500 || 
                       (inscriptionType === 'image' && !imageFile) ||
-                      (inscriptionType === 'profile2' && !profileImageFile && !backgroundImageFile) ||
+                      ((inscriptionType === 'profile2' || inscriptionType === 'profile4') && !profileImageFile && !backgroundImageFile) ||
                       (Date.now() - lastTransactionTime < 5000) ||
                       (encryptionLevel > 0 && (!blogKeyHistory.current || isEncrypting || !encryptedData))}
                     className="w-full py-3 px-6 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
@@ -395,13 +409,19 @@ export const CreateInscription: React.FC<CreateInscriptionProps> = ({ network })
 
             {/* Right Side - Encrypted Data Display */}
             <div className="space-y-4">
-              {inscriptionType === 'largeProfile' ? (
+              {inscriptionType === 'largeProfile' || inscriptionType === 'largeProfile2' ? (
                 <>
-                  <h3 className="text-lg font-medium text-white">BCAT Protocol Info</h3>
+                  <h3 className="text-lg font-medium text-white">
+                    {inscriptionType === 'largeProfile2' ? 'BCAT Manager Info' : 'BCAT Protocol Info'}
+                  </h3>
                   <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg">
-                    <h4 className="text-sm font-medium text-purple-400 mb-2">How BCAT Works</h4>
+                    <h4 className="text-sm font-medium text-purple-400 mb-2">
+                      {inscriptionType === 'largeProfile2' ? 'BCAT Manager Features' : 'How BCAT Works'}
+                    </h4>
                     <p className="text-xs text-gray-300 mb-3">
-                      BCAT (Bitcoin Concatenation) protocol allows storing large files on-chain by splitting them into multiple transactions.
+                      {inscriptionType === 'largeProfile2' 
+                        ? 'Advanced BCAT management with enhanced features for large file handling.'
+                        : 'BCAT (Bitcoin Concatenation) protocol allows storing large files on-chain by splitting them into multiple transactions.'}
                     </p>
                     <div className="space-y-2">
                       <div className="flex items-start gap-2">
@@ -423,7 +443,9 @@ export const CreateInscription: React.FC<CreateInscriptionProps> = ({ network })
                     </div>
                     <div className="mt-3 p-2 bg-purple-900 bg-opacity-30 rounded">
                       <p className="text-xs text-purple-300">
-                        💡 Perfect for videos, large images, archives, and any file over 10MB
+                        {inscriptionType === 'largeProfile2'
+                          ? '🚀 Enhanced BCAT management with advanced features'
+                          : '💡 Perfect for videos, large images, archives, and any file over 10MB'}
                       </p>
                     </div>
                   </div>
@@ -529,7 +551,7 @@ export const CreateInscription: React.FC<CreateInscriptionProps> = ({ network })
                       {inscriptionType === 'image' && imagePreview && (
                         <img src={imagePreview} alt="Preview" className="max-h-32 mx-auto rounded" />
                       )}
-                      {(inscriptionType === 'profile' || inscriptionType === 'profile2') && (
+                      {(inscriptionType === 'profile' || inscriptionType === 'profile2' || inscriptionType === 'profile4') && (
                         <div className="text-sm text-gray-300 space-y-1">
                           <p><span className="text-gray-400">Username:</span> {profileData.username || 'Not set'}</p>
                           <p><span className="text-gray-400">Title:</span> {profileData.title || 'Not set'}</p>
