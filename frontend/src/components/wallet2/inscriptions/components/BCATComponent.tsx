@@ -283,7 +283,7 @@ export const BCATManager: React.FC<{ keyData: any; network: string }> = ({
               {uploadResult.success ? (
                 <>
                   <p className="text-green-300 font-medium mb-2">✅ Upload Successful!</p>
-                  
+                  <a
                     href={`https://${network === 'testnet' ? 'test.' : ''}whatsonchain.com/tx/${uploadResult.txid}`}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -379,7 +379,7 @@ export const BCATManager: React.FC<{ keyData: any; network: string }> = ({
                         </span>
                       </div>
                       {session.mainTxId && (
-                        
+                        <a
                           href={`https://${network === 'testnet' ? 'test.' : ''}whatsonchain.com/tx/${session.mainTxId}`}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -439,7 +439,6 @@ export const BCATManager: React.FC<{ keyData: any; network: string }> = ({
     </div>
   );
 };
-
 // import React, { useState } from 'react';
 // import { BCATUploadManager } from './BCATUploadManager';
 // import { BCATEnhancedDecoder } from './BCATEnhancedDecoder';

@@ -1,3 +1,9 @@
+
+
+
+
+
+
 import React, { useState, useEffect } from 'react';
 import { Utils } from '@bsv/sdk';
 import { BCATDecoderDisplay } from './BCATDecoderDisplay';
@@ -466,6 +472,57 @@ export const BCATViewer: React.FC<BCATViewerProps> = ({
     </div>
   );
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // Your BCAT Files
 
