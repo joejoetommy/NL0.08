@@ -5,6 +5,7 @@ import { CreateImageInscription } from './CreateImageInscription';
 import { CreateProfileInscription } from './CreateProfileInscription';
 import { CreateProfile2Inscription } from './CreateProfile2Inscription';
 import { CreateLargeProfileInscription } from './CreateLargeProfileInscription';
+import { CreateLargeProfileInscription1 } from './CreateLargeProfileInscription1';
 import { BCATManager } from './BCATComponent';
 import { InscriptionTypeSelector } from './InscriptionTypeSelector';
 import { EncryptionOptions } from './EncryptionOptions';
@@ -355,11 +356,22 @@ export const CreateInscription: React.FC<CreateInscriptionProps> = ({ network })
               )}
 
               {inscriptionType === 'largeProfile2' && (
-                <BCATManager
-                  // BCATManager
+              //   <BCATManager
+              //     // BCATManager
+              //     keyData={keyData}
+              //     network={network}
+              // //  whatsOnChainApiKey={whatsOnChainApiKey}
+              //     currentFeeRate={currentFeeRate}
+              //     balance={balance}
+              //     lastTransactionTime={lastTransactionTime}
+              //     setStatus={setStatus}
+              //     setLastTxid={setLastTxid}
+              //     setLastTransactionTime={setLastTransactionTime}
+              //   />
+               <CreateLargeProfileInscription1
                   keyData={keyData}
                   network={network}
-              //  whatsOnChainApiKey={whatsOnChainApiKey}
+                  whatsOnChainApiKey={whatsOnChainApiKey}
                   currentFeeRate={currentFeeRate}
                   balance={balance}
                   lastTransactionTime={lastTransactionTime}

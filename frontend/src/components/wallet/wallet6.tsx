@@ -8,7 +8,7 @@ import { Conversations } from '../wallet2/components/Conversations';
 import { ProfileToken } from '../wallet2/components/ProfileToken4';
 import { examplePublicKeys } from './data2';
 
-type ViewMode = 'wallet' | 'contacts' | 'messages' | 'conversations' | 'profiles';
+type ViewMode = 'wallet' | 'contacts' | 'messages' | 'conversations' | 'profiles' | 'Token';
 
 const WalletApp: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('wallet');
@@ -132,6 +132,7 @@ const WalletApp: React.FC = () => {
 
           {/* Content based on view mode */}
           {viewMode === 'profiles' && <ProfileToken />}
+
           {viewMode === 'conversations' && <Conversations />}
           {viewMode === 'messages' && <Messages />}
           {viewMode === 'contacts' && <Contacts />}
