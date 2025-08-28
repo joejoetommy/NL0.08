@@ -25,6 +25,7 @@ interface ChunkUploadState {
   status: 'pending' | 'uploading' | 'success' | 'failed';
   attempts: number;
   error?: string;
+  lastAttemptTime?: number;
 }
 
 // BCAT Protocol Constants
@@ -56,6 +57,10 @@ export const CreateLargeProfileInscription: React.FC<CreateLargeProfileInscripti
   const [processingMode, setProcessingMode] = useState<'sequential' | 'manual'>('sequential');
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentProcessingIndex, setCurrentProcessingIndex] = useState<number | null>(null);
+  
+  // Pause/Resume state
+  const [isPaused, setIsPaused] = useState(false);
+  const [shouldStop, setShouldStop] = useState(false);
 
   // Helper function to chunk large files
   const chunkFile = (file: File, chunkSizeMB: number): Promise<ArrayBuffer[]> => {
@@ -214,8 +219,8 @@ export const CreateLargeProfileInscription: React.FC<CreateLargeProfileInscripti
     });
   };
 
-  // Upload a single chunk (independent operation) - IMPROVED VERSION
-  const uploadSingleChunk = async (chunkIndex: number): Promise<{ success: boolean; txid?: string; error?: string }> => {
+  // Upload a single chunk with improved timeout and retry logic
+  const uploadSingleChunk = async (chunkIndex: number, forceNewUTXOs: boolean = false): Promise<{ success: boolean; txid?: string; error?: string }> => {
     const chunkState = chunkStates[chunkIndex];
     if (!chunkState) {
       return { success: false, error: 'Chunk not found' };
@@ -227,12 +232,13 @@ export const CreateLargeProfileInscription: React.FC<CreateLargeProfileInscripti
       return { success: true, txid: chunkState.txid };
     }
 
+    // Create broadcast service with shorter timeout (10 seconds instead of 30)
     const broadcastService = new BroadcastService(network, (message: string) => {
       setStatus({ 
         type: 'info', 
         message: `Chunk ${chunkIndex + 1}: ${message}` 
       });
-    });
+    }, 10000); // 10 second timeout
     
     const privateKey = PrivateKey.fromWif(keyData.privateKeyWif) || PrivateKey.fromHex(keyData.privateKeyHex);
     const address = privateKey.toPublicKey().toAddress();
@@ -244,12 +250,21 @@ export const CreateLargeProfileInscription: React.FC<CreateLargeProfileInscripti
         newStates[chunkIndex] = { 
           ...newStates[chunkIndex], 
           status: 'uploading',
-          attempts: newStates[chunkIndex].attempts + 1
+          attempts: newStates[chunkIndex].attempts + 1,
+          lastAttemptTime: Date.now()
         };
         return newStates;
       });
 
+      // Force fresh UTXO fetch if requested or after mempool conflict
       const utxoManager = new UTXOManager(keyData.address, network, whatsOnChainApiKey);
+      
+      // Add delay if we're forcing new UTXOs (after a conflict)
+      if (forceNewUTXOs) {
+        console.log(`Waiting 5 seconds before fetching new UTXOs for chunk ${chunkIndex + 1}...`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
+      
       const utxos = await utxoManager.fetchUTXOs(true);
       
       if (utxos.length === 0) {
@@ -381,6 +396,9 @@ export const CreateLargeProfileInscription: React.FC<CreateLargeProfileInscripti
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       
+      // Check if it's a mempool conflict
+      const isMempoolConflict = errorMessage.includes('txn-mempool-conflict');
+      
       // Update ONLY this chunk's state to failed
       setChunkStates(prevStates => {
         const newStates = [...prevStates];
@@ -393,6 +411,14 @@ export const CreateLargeProfileInscription: React.FC<CreateLargeProfileInscripti
       });
       
       console.error(`❌ Chunk ${chunkIndex + 1} failed: ${errorMessage}`);
+      
+      // If it's a mempool conflict and we haven't tried with fresh UTXOs yet, retry automatically
+      if (isMempoolConflict && !forceNewUTXOs && chunkState.attempts < 3) {
+        console.log(`Mempool conflict detected for chunk ${chunkIndex + 1}, retrying with fresh UTXOs...`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        return uploadSingleChunk(chunkIndex, true);
+      }
+      
       return { 
         success: false, 
         error: errorMessage
@@ -400,7 +426,7 @@ export const CreateLargeProfileInscription: React.FC<CreateLargeProfileInscripti
     }
   };
 
-  // Upload a specific chunk (manual mode) - IMPROVED VERSION
+  // Upload a specific chunk (manual mode)
   const uploadChunk = async (chunkIndex: number) => {
     // Get current state of the specific chunk
     const currentChunkState = chunkStates[chunkIndex];
@@ -427,7 +453,7 @@ export const CreateLargeProfileInscription: React.FC<CreateLargeProfileInscripti
       message: `Starting upload for chunk ${chunkIndex + 1} of ${chunkStates.length}...` 
     });
     
-    const result = await uploadSingleChunk(chunkIndex);
+    const result = await uploadSingleChunk(chunkIndex, false);
     
     if (result.success && result.txid) {
       setStatus({ 
@@ -450,11 +476,30 @@ export const CreateLargeProfileInscription: React.FC<CreateLargeProfileInscripti
     setCurrentProcessingIndex(null);
   };
 
-  // Process chunks sequentially - IMPROVED VERSION
+  // Process chunks sequentially with pause/resume support
   const processChunksSequentially = async () => {
     setIsProcessing(true);
+    setShouldStop(false);
+    setIsPaused(false);
     
     for (let i = 0; i < chunkStates.length; i++) {
+      // Check if we should stop
+      if (shouldStop) {
+        console.log('Sequential processing stopped by user');
+        break;
+      }
+      
+      // Wait while paused
+      while (isPaused && !shouldStop) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      // Check again after pause
+      if (shouldStop) {
+        console.log('Sequential processing stopped by user after pause');
+        break;
+      }
+      
       // Get fresh state for this chunk
       const currentState = chunkStates[i];
       
@@ -467,25 +512,59 @@ export const CreateLargeProfileInscription: React.FC<CreateLargeProfileInscripti
       setCurrentProcessingIndex(i);
       
       // Upload this chunk
-      const result = await uploadSingleChunk(i);
+      const result = await uploadSingleChunk(i, false);
       
       if (!result.success) {
         console.error(`Failed to upload chunk ${i + 1}: ${result.error}`);
-        // Continue with next chunk even if this one fails
+        
+        // Check if we should auto-retry based on error type
+        const shouldAutoRetry = result.error?.includes('timeout') || 
+                               result.error?.includes('txn-mempool-conflict');
+        
+        if (shouldAutoRetry && currentState.attempts < 3) {
+          console.log(`Auto-retrying chunk ${i + 1} after failure...`);
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          const retryResult = await uploadSingleChunk(i, true);
+          if (!retryResult.success) {
+            // Skip to next chunk after retry failure
+            continue;
+          }
+        }
       }
       
       // Wait between chunks to avoid conflicts
       if (i < chunkStates.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 3000)); // Increased delay
+        await new Promise(resolve => setTimeout(resolve, 3000));
       }
     }
     
     setIsProcessing(false);
     setCurrentProcessingIndex(null);
+    setShouldStop(false);
+    setIsPaused(false);
     
     // Final check of all chunks
     const finalStates = chunkStates;
     checkAllChunksComplete(finalStates);
+  };
+
+  // Stop processing
+  const stopProcessing = () => {
+    setShouldStop(true);
+    setIsPaused(false);
+    setStatus({ type: 'info', message: 'Stopping chunk upload process...' });
+  };
+
+  // Pause processing
+  const pauseProcessing = () => {
+    setIsPaused(true);
+    setStatus({ type: 'info', message: 'Paused chunk upload process' });
+  };
+
+  // Resume processing
+  const resumeProcessing = () => {
+    setIsPaused(false);
+    setStatus({ type: 'info', message: 'Resumed chunk upload process' });
   };
 
   // Check if all chunks are complete
@@ -739,7 +818,7 @@ export const CreateLargeProfileInscription: React.FC<CreateLargeProfileInscripti
     }
   };
 
-  const isDisabled = loading || !keyData.privateKey || !largeProfileFile || isProcessing ||
+  const isDisabled = loading || !keyData.privateKey || !largeProfileFile || 
     (Date.now() - lastTransactionTime < 5000) || balance.confirmed < 5000;
 
   const allChunksComplete = getAllChunksComplete();
@@ -880,26 +959,66 @@ export const CreateLargeProfileInscription: React.FC<CreateLargeProfileInscripti
                   Chunk Upload Status 
                   ({chunkStates.filter(s => s.status === 'success').length}/{chunkStates.length} complete)
                 </h4>
-                {processingMode === 'sequential' && !isProcessing && !allChunksComplete && (
-                  <button
-                    onClick={processChunksSequentially}
-                    className="px-3 py-1 bg-purple-500 hover:bg-purple-600 text-white text-sm rounded"
-                  >
-                    Start Sequential Upload
-                  </button>
-                )}
-                {allChunksComplete && (
-                  <span className="px-3 py-1 bg-green-500 text-white text-sm rounded">
-                    ✅ All Complete
-                  </span>
-                )}
+                <div className="flex gap-2">
+                  {processingMode === 'sequential' && !allChunksComplete && (
+                    <>
+                      {!isProcessing ? (
+                        <button
+                          onClick={processChunksSequentially}
+                          className="px-3 py-1 bg-purple-500 hover:bg-purple-600 text-white text-sm rounded flex items-center gap-1"
+                        >
+                          ▶️ Start Upload
+                        </button>
+                      ) : (
+                        <>
+                          {!isPaused ? (
+                            <>
+                              <button
+                                onClick={pauseProcessing}
+                                className="px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-white text-sm rounded flex items-center gap-1"
+                              >
+                                ⏸️ Pause
+                              </button>
+                              <button
+                                onClick={stopProcessing}
+                                className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded flex items-center gap-1"
+                              >
+                                ⏹️ Stop
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={resumeProcessing}
+                                className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-sm rounded flex items-center gap-1"
+                              >
+                                ▶️ Resume
+                              </button>
+                              <button
+                                onClick={stopProcessing}
+                                className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded flex items-center gap-1"
+                              >
+                                ⏹️ Stop
+                              </button>
+                            </>
+                          )}
+                        </>
+                      )}
+                    </>
+                  )}
+                  {allChunksComplete && (
+                    <span className="px-3 py-1 bg-green-500 text-white text-sm rounded">
+                      ✅ All Complete
+                    </span>
+                  )}
+                </div>
               </div>
               
               {/* Progress bar */}
               {isProcessing && currentProcessingIndex !== null && (
                 <div>
                   <p className="text-sm text-gray-300 mb-2">
-                    Uploading chunk {currentProcessingIndex + 1} of {chunkStates.length}
+                    {isPaused ? '⏸️ Paused at' : 'Uploading'} chunk {currentProcessingIndex + 1} of {chunkStates.length}
                   </p>
                   <div className="w-full bg-gray-700 rounded-full h-2">
                     <div 
@@ -939,16 +1058,17 @@ export const CreateLargeProfileInscription: React.FC<CreateLargeProfileInscripti
                       )}
                       {state.status === 'failed' && (
                         <>
-                          <span className="text-red-400" title={state.error}>✗ Failed</span>
-                          {processingMode === 'manual' && (
-                            <button
-                              onClick={() => uploadChunk(state.chunkIndex)}
-                              className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded"
-                              disabled={isProcessing}
-                            >
-                              Retry
-                            </button>
-                          )}
+                          <span className="text-red-400" title={state.error}>
+                            ✗ {state.error?.includes('timeout') ? 'Timeout' : 
+                                state.error?.includes('mempool') ? 'Conflict' : 'Failed'}
+                          </span>
+                          <button
+                            onClick={() => uploadChunk(state.chunkIndex)}
+                            className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded"
+                            disabled={isProcessing}
+                          >
+                            Retry
+                          </button>
                         </>
                       )}
                       {state.status === 'uploading' && (
@@ -1012,10 +1132,11 @@ export const CreateLargeProfileInscription: React.FC<CreateLargeProfileInscripti
             <ul className="text-xs text-gray-300 space-y-1">
               <li>• Configurable chunk size (0.1 - 10MB)</li>
               <li>• Sequential or manual upload modes</li>
+              <li>• Pause/Resume/Stop controls for sequential mode</li>
+              <li>• Auto-retry on timeout and mempool conflicts</li>
               <li>• Individual chunk control and retry</li>
+              <li>• 10-second timeout for faster failure detection</li>
               <li>• Chunks always assembled in correct order</li>
-              <li>• Fast failure detection (5-10 seconds)</li>
-              <li>• Real-time broadcast status updates</li>
             </ul>
           </div>
 
