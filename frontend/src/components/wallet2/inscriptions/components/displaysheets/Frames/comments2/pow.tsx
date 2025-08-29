@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Icon } from '@iconify/react'; // Ensure this is properly imported
-import { TextareaForm } from "@/components/Frames/textarea";
+import { TextareaForm } from "../../textarea";
 // import { Button } from "@/components/ui/button";
 
 export const formatDate = (dateString: string): string => {

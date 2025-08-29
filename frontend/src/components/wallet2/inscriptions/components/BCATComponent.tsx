@@ -1,8 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { BCATUploadManager } from './BCATUploadManager';
 import { BCATEnhancedDecoder } from './BCATEnhancedDecoder';
-import { BCATTestSuite } from './BCATTestSuite';
 import { BCATSessionManager } from './BCATStorage';
+
+// Type-safe import for BCATTestSuite
+interface BCATTestSuiteProps {
+  network: 'mainnet' | 'testnet';
+  onComplete?: (result: { recommendedSize?: number }) => void;
+}
+
+// Try to import BCATTestSuite, fallback to placeholder if not available
+let BCATTestSuite: React.FC<BCATTestSuiteProps>;
+try {
+  BCATTestSuite = require('./BCATTestSuite').BCATTestSuite || require('./BCATTestSuite').default;
+} catch {
+  BCATTestSuite = (props: BCATTestSuiteProps) => (
+    <div className="p-4 bg-gray-800 rounded-lg text-gray-400">
+      BCATTestSuite component not available
+    </div>
+  );
+}
 
 interface UploadSession {
   sessionId: string;
@@ -99,7 +116,8 @@ export const BCATManager: React.FC<{ keyData: any; network: string }> = ({
   };
 
   const handleClearSessions = async () => {
-    if (confirm('Clear all completed sessions?')) {
+    // Fixed: Using window.confirm instead of global confirm
+    if (window.confirm('Clear all completed sessions?')) {
       for (const session of sessions) {
         if (session.status === 'completed') {
           await sessionManager.deleteSession(session.fileHash);
@@ -427,18 +445,28 @@ export const BCATManager: React.FC<{ keyData: any; network: string }> = ({
 
       {/* Test Tab */}
       {activeTab === 'test' && (
-        <BCATTestSuite 
-          network={network as 'mainnet' | 'testnet'}
-          onComplete={(result) => {
-            if (result.recommendedSize) {
-              setSettings({ ...settings, chunkSize: result.recommendedSize });
-            }
-          }}
-        />
+        <div>
+          {BCATTestSuite ? (
+            <BCATTestSuite 
+              network={network as 'mainnet' | 'testnet'}
+              onComplete={(result: any) => {
+                if (result?.recommendedSize) {
+                  setSettings(prev => ({ ...prev, chunkSize: result.recommendedSize }));
+                }
+              }}
+            />
+          ) : (
+            <div className="p-4 bg-gray-800 rounded-lg text-gray-400">
+              BCATTestSuite component is not available
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
 };
+
+
 // import React, { useState } from 'react';
 // import { BCATUploadManager } from './BCATUploadManager';
 // import { BCATEnhancedDecoder } from './BCATEnhancedDecoder';

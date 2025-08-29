@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Icon } from '@iconify/react';
-import contacts from '@/components/data/contacts';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import contacts from '../../../../../../ui/contacts';
+//  import { Textarea } from "../../components/ui/textarea";
+import { Avatar, AvatarImage, AvatarFallback } from '../../../../../../ui/avatar';
 import { TextareaForm } from "../../textarea";
 //  import { Button } from "@/components/ui/button";
 

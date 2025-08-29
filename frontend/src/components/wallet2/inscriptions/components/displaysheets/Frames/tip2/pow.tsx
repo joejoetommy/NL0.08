@@ -7,7 +7,7 @@ import React, { useState, useMemo } from 'react';
 // import { Bar, BarChart, ResponsiveContainer } from "recharts"
 // import { Comment, Reply } from '@/components/data/comments'; 
 // import comments from '@/components/data/comments';
-import { Textarea } from "@/components/ui/textarea"
+import { Textarea } from "../../../../../../ui/textarea"
 //import { TextareaForm } from "@/components/Frames/tip/textarea"
 // TextareaForm
 // import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -46,16 +46,16 @@ import { z } from "zod"
 // import React, { useState } from 'react';
 import { Icon } from '@iconify/react';
 // import { TextareaForm } from "@/components/Frames/tip/textarea";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "../../../../../../ui/avatar";
+import { Switch } from "../../../../../../ui/switch";
+import { Label } from "../../../../../../ui/label";
+import { Button } from "../../../../../../ui/button";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@/components/ui/accordion";
+} from "../../../../../../ui/accordion";
 
 const FormSchema = z.object({
   reply: z

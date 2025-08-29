@@ -1,7 +1,7 @@
 'use client';
 
 // import { NextPage } from 'next'
-import Calendar from '@/components/Account/(sheets)/(BuildingOut)/calendersheet'
+import Calendar from '../../../../ui/calendersheet'
 
 import { LuBedSingle } from "react-icons/lu";
 import { LuBath } from "react-icons/lu";
@@ -20,7 +20,7 @@ import { BsPersonVideo3 } from "react-icons/bs";
 import { IoIosFitness } from "react-icons/io";
 import { LiaSpaSolid } from "react-icons/lia";
 // import { MdDescription } from "react-icons/md";
-// import { TfiWrite } from "react-icons/tfi";
+import { TfiWrite } from "react-icons/tfi";
 // import { FaSmoking } from "react-icons/fa";
 // import { TbClockCancel } from "react-icons/tb";
 // import { MdPets } from "react-icons/md";
@@ -29,22 +29,22 @@ import { LiaSpaSolid } from "react-icons/lia";
 // import { MdOutlineNoteAlt } from "react-icons/md";
 import { BsDatabaseAdd } from "react-icons/bs";
 import { FaUser } from "react-icons/fa";
-
-import { DrawerLikes } from '@/components/Frames/likes2/pow';
-import { DrawerComment } from '@/components/Frames/comments2/pow';
-import { DrawerReport } from '@/components/Frames/report2/pow';
-import { DrawerReview } from '@/components/Frames/review2/pow';
-import { Direct } from '@/components/Frames/DM/pow';
-import { DrawerShare } from '@/components/Frames/share2/pow';
-import { DrawerTip } from '@/components/Frames/tip2/pow';
-import { DrawerSave } from '@/components/Frames/save2/pow';
+// import { DrawerLikes } from '@/components/Frames/likes2/pow';
+import { DrawerLikes } from './Frames/likes2/pow';
+import { DrawerComment } from './Frames/comments2/pow';
+import { DrawerReport } from './Frames/report2/pow';
+import { DrawerReview } from './Frames/review2/pow';
+import { Direct } from './Frames/DM/pow';
+import { DrawerShare } from './Frames/share2/pow';
+import { DrawerTip } from './Frames/tip2/pow';
+import { DrawerSave } from './Frames/save2/pow';
 
 // import { ReviewCounterWithRating  } from "@/components/Account/(sheets)/(BuildingOut)/reviewstaraverage"
 // import { ReviewCounter  } from "@/components/Account/(sheets)/(BuildingOut)/reviewcounteropen"
 
 import {
   MenubarSeparator,
-} from "@/components/ui/menubar"
+} from '../../../../../components/ui/menubar';
 
 import React, { useState, useEffect, useRef } from 'react';
 // import { Button } from "@/components/ui/button"
@@ -52,20 +52,21 @@ import {
   Dialog,
   DialogTrigger,
   DialogContent,
-  DialogTitle,
   DialogSubtitle,
+  DialogTitle,
   DialogClose,
   DialogContainer,
-} from '@/components/core/dialog';
+} from '../../../../../components/ui/dialog1';
 import {
   AlertDialogFooter,
-} from "@/components/ui/alert-dialog"
+} from "../../../../../components/ui/alert-dialog"
 import { PlusIcon, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useTabs } from '@/hook/use-tabs'; 
-import { Framer } from '@/lib/framercard';
+import { useTabs } from '../../../../../hooks/use-tabs'; 
+import { Framer } from '../../../../../lib/framercard';
+// import { Framer } from './lib/framercard';
 import { motion } from 'framer-motion';
 import { DoubleArrowDownIcon, DoubleArrowUpIcon, CardStackPlusIcon, CameraIcon, StarIcon, ClockIcon } from "@radix-ui/react-icons"
-import { ScrollArea } from "@/components/ui/scroll-area"
+// import { ScrollArea } from "@/components/ui/scroll-area"
 import { Icon } from '@iconify/react';
 
 // Define SheetData interface to match your data structure

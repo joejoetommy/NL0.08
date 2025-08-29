@@ -4,8 +4,8 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "../../../../../components/ui/avatar"
+import { Button } from "../../../../../components/ui/button"
 import {
   Form,
   FormControl,
@@ -14,9 +14,9 @@ import {
   FormItem,
 //  FormLabel,
   FormMessage,
-} from "@/components/ui/form"
-import { Textarea } from "@/components/ui/textarea"
-import { toast } from "@/components/ui/use-toast"
+} from "../../../../../components/ui/form"
+import { Textarea } from "../../../../../components/ui/textarea"
+import { toast } from "../../../../../components/ui/use-toast"
 import { Icon } from '@iconify/react';
 
 
