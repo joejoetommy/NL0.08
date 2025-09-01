@@ -3,7 +3,7 @@ import { BCATUploadManager } from './BCATUploadManager';
 import { BCATEnhancedDecoder } from './BCATEnhancedDecoder';
 import { BCATSessionManager } from './BCATStorage';
 
-// Type-safe import for BCATTestSuite
+// Type-safe import for BCATTestSuite    dateFns.addYears
 interface BCATTestSuiteProps {
   network: 'mainnet' | 'testnet';
   onComplete?: (result: { recommendedSize?: number }) => void;

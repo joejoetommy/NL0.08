@@ -37,7 +37,7 @@ const WalletApp: React.FC = () => {
     }
   }, []);
 
-  // Update shared secrets when private key changes
+  // Update shared secrets when private key changes  dateFns.addYears
   useEffect(() => {
     if (keyData.privateKey) {
       updateContactSharedSecrets(keyData.privateKey);

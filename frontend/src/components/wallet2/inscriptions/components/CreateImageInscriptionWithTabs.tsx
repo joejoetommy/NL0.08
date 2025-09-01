@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { validateImageFile, imageToBase64, getImageDimensions } from '../../utils/imageUtils';
+import { validateImageFile, imageToBase64, getImageDimensions } from '../utils/imageUtils';
 import { ImageInscriptionViewer } from './ImageInscriptionViewer';
 
 interface CreateImageInscriptionProps {

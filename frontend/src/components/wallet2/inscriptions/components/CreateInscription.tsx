@@ -5,7 +5,7 @@ import { CreateImageInscription } from './CreateImageInscription';
 import { CreateProfileInscription } from './CreateProfileInscription';
 import { CreateProfile2Inscription } from './CreateProfile2Inscription';
 import { CreateLargeProfileInscription } from './CreateLargeProfileInscription';
-import { CreateLargeProfileInscription1 } from './CreateLargeProfileInscription1';
+// import { CreateLargeProfileInscription1 } from './CreateLargeProfileInscription1';
 import { BCATManager } from './BCATComponent';
 import { InscriptionTypeSelector } from './InscriptionTypeSelector';
 import { EncryptionOptions } from './EncryptionOptions';
@@ -17,7 +17,7 @@ import { createInscription } from '../utils/inscriptionCreator';
 interface CreateInscriptionProps {
   network: 'mainnet' | 'testnet';
 }
-//   InscriptionTypeSelectorProps Inscription Type
+//   InscriptionTypeSelectorProps Inscription Type      
 export const CreateInscription: React.FC<CreateInscriptionProps> = ({ network }) => {
   const [inscriptionType, setInscriptionType] = useState<'text' | 'image' | 'profile' | 'profile2' | 'largeProfile' | 'largeProfile2'>('text');
   const [textData, setTextData] = useState('');
@@ -356,22 +356,11 @@ export const CreateInscription: React.FC<CreateInscriptionProps> = ({ network })
               )}
 
               {inscriptionType === 'largeProfile2' && (
-              //   <BCATManager
-              //     // BCATManager
-              //     keyData={keyData}
-              //     network={network}
-              // //  whatsOnChainApiKey={whatsOnChainApiKey}
-              //     currentFeeRate={currentFeeRate}
-              //     balance={balance}
-              //     lastTransactionTime={lastTransactionTime}
-              //     setStatus={setStatus}
-              //     setLastTxid={setLastTxid}
-              //     setLastTransactionTime={setLastTransactionTime}
-              //   />
-               <CreateLargeProfileInscription1
+                <BCATManager
+                  // BCATManager
                   keyData={keyData}
                   network={network}
-                  whatsOnChainApiKey={whatsOnChainApiKey}
+              //  whatsOnChainApiKey={whatsOnChainApiKey}
                   currentFeeRate={currentFeeRate}
                   balance={balance}
                   lastTransactionTime={lastTransactionTime}
@@ -379,6 +368,17 @@ export const CreateInscription: React.FC<CreateInscriptionProps> = ({ network })
                   setLastTxid={setLastTxid}
                   setLastTransactionTime={setLastTransactionTime}
                 />
+              //  <CreateLargeProfileInscription1
+              //     keyData={keyData}
+              //     network={network}
+              //     whatsOnChainApiKey={whatsOnChainApiKey}
+              //     currentFeeRate={currentFeeRate}
+              //     balance={balance}
+              //     lastTransactionTime={lastTransactionTime}
+              //     setStatus={setStatus}
+              //     setLastTxid={setLastTxid}
+              //     setLastTransactionTime={setLastTransactionTime}
+              //   />
               )}
 
               {inscriptionType !== 'largeProfile' && inscriptionType !== 'largeProfile2' && (

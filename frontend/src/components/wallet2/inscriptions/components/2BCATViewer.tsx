@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Utils } from '@bsv/sdk';
-import { BCATDecoderDisplay } from './BCATDecoderDisplay';
+ import { BCATDecoderDisplay } from './BCATDecoderDisplay';
 
 interface BCATViewerProps {
   keyData: any;
