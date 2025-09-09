@@ -325,7 +325,7 @@ export const BCATViewer: React.FC<BCATViewerProps> = ({
           </button>
         </div>
         
-        {/* Decoded BCAT Display */}
+        {/* Decoded BCAT Display Manual BCAT Decoder */}
         {decodedBcat && (
           <div className="mt-4">
             <BCATDecoderDisplay

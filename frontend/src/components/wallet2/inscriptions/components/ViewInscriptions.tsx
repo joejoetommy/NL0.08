@@ -208,7 +208,7 @@ export const ViewInscriptions: React.FC<ViewInscriptionsProps> = ({ network }) =
             </button>
           </div>
 
-          {/* Filter */}
+          {/* Filter   Your BCAT Files   */}
           <InscriptionFilter
             inscriptionFilter={inscriptionFilter}
             setInscriptionFilter={setInscriptionFilter}

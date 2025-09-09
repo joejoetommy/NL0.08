@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Utils } from '@bsv/sdk';
+//import PropertyViewer from '../components/wallet2/inscriptions/display/sheet1';
+import PropertyViewer from '../../inscriptions/display/sheet2';
 
 interface BCATDecoderDisplayProps {
   bcatTxId: string;
@@ -19,6 +21,67 @@ interface BCATDecoderDisplayProps {
 // BCAT part namespace
 const BCAT_PART_NAMESPACE = '1ChDHzdd1H4wSjgGMHyndZm6qxEDGjqpJL';
 
+/** Lightweight parser: JSON → key/value; otherwise INI / "key: value" / "key=value" lines */
+function parseProperties(text = "") {
+  if (!text || typeof text !== "string") return [];
+
+  // Try JSON first
+  try {
+    const obj = JSON.parse(text);
+    if (obj && typeof obj === "object") {
+      return Object.entries(obj).map(([k, v]) => [k, formatValue(v)]);
+    }
+  } catch (_) {}
+
+  // Fallback: parse "key: value" or "key=value" lines
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const rows = [];
+  for (const line of lines) {
+    const m = line.match(/^([^:=]+)\s*[:=]\s*(.+)$/);
+    if (m) rows.push([m[1].trim(), m[2].trim()]);
+  }
+  return rows;
+}
+
+function formatValue(v: any): string {
+  if (v == null) return "";
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  return JSON.stringify(v, null, 2);
+}
+
+// interface PropertyViewerProps {
+//   content: string;
+// }
+
+// function PropertyViewer({ content }: PropertyViewerProps) {
+//   const rows = useMemo(() => parseProperties(content), [content]);
+
+//   if (!rows.length) {
+//     // Graceful fallback: show raw text when we can't parse properties
+//     return (
+//       <pre className="text-gray-300 text-sm whitespace-pre-wrap">
+//         {content || "(no readable properties)"}
+//       </pre>
+//     );
+//   }
+
+//   return (
+//     <div className="max-h-96 overflow-y-auto">
+//       <table className="w-full text-sm">
+//         <tbody>
+//           {rows.map(([k, v], idx) => (
+//             <tr key={idx} className="border-b border-gray-800">
+//               <td className="py-2 pr-3 text-gray-400 align-top w-1/3">{k}</td>
+//               <td className="py-2 text-gray-200 whitespace-pre-wrap">{v}</td>
+//             </tr>
+//           ))}
+//         </tbody>
+//       </table>
+//     </div>
+//   );
+// }
+
 export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
   bcatTxId,
   chunkTxIds,
@@ -34,6 +97,8 @@ export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
   const [encryptionKey, setEncryptionKey] = useState<string>('');
   const [isEncrypted, setIsEncrypted] = useState(false);
   const [fileBlob, setFileBlob] = useState<Blob | null>(null);
+  
+  const [selectedView, setSelectedView] = useState("auto"); // "auto" | "image" | "text" | "video" | "file" | "property"
 
   // Convert namespace to hex for comparison
   const namespaceToHex = (namespace: string): string => {
@@ -329,6 +394,13 @@ export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
       } else {
         setContentType('file');
         // For other file types, we'll just enable download
+        // But also try to decode as text for property viewing
+        try {
+          const text = new TextDecoder().decode(finalData);
+          setReconstructedContent(text);
+        } catch (e) {
+          // Can't decode as text, that's fine
+        }
       }
       
       setError('');
@@ -464,53 +536,98 @@ export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
       {/* Content Display */}
       {reconstructedContent && (
         <div className="bg-gray-800 rounded-lg p-4">
-          <h4 className="text-sm font-medium text-gray-300 mb-3">Preview</h4>
-          
-          {contentType === 'image' && (
-            <div className="flex flex-col items-center">
-              <img 
-                src={reconstructedContent} 
-                alt={metadata.filename}
-                className="max-w-full max-h-96 rounded"
-                onError={() => setError('Failed to display image')}
-              />
-              <button
-                onClick={() => window.open(reconstructedContent, '_blank')}
-                className="mt-3 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm"
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-medium text-gray-300">Preview</h4>
+
+            {/* View selector */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-400">View as:</label>
+              <select
+                className="text-sm bg-gray-900 text-gray-200 border border-gray-700 rounded px-2 py-1"
+                value={selectedView}
+                onChange={(e) => setSelectedView(e.target.value)}
               >
-                🔍 View Full Size
-              </button>
+                <option value="auto">Auto</option>
+                <option value="image">Image</option>
+                <option value="text">Text</option>
+                <option value="video">Video</option>
+                <option value="file">File</option>
+                <option value="property">Property</option>
+              </select>
             </div>
-          )}
-          
-          {contentType === 'text' && (
-            <div className="bg-gray-900 rounded p-3 max-h-96 overflow-y-auto">
-              <pre className="text-gray-300 text-sm whitespace-pre-wrap">{reconstructedContent}</pre>
-            </div>
-          )}
-          
-          {contentType === 'video' && (
-            <div className="flex flex-col items-center">
-              <video 
-                controls 
-                className="max-w-full max-h-96 rounded"
-                src={reconstructedContent}
-              >
-                Your browser does not support the video tag.
-              </video>
-            </div>
-          )}
-          
-          {contentType === 'file' && (
-            <div className="text-center py-8">
-              <p className="text-gray-400 mb-3">
-                File reconstructed successfully. Click download to save.
-              </p>
-              <p className="text-xs text-gray-500">
-                File type: {metadata.mimeType}
-              </p>
-            </div>
-          )}
+          </div>
+
+          {(() => {
+            // Detect special filename and choose effective view
+            const filename = (metadata?.filename || "").trim();
+            const looksLikeProperty =
+              /(^|\s)Filename:\s*Properety\s+title_prop\b/i.test(filename) ||
+              filename.toLowerCase().includes("title_prop");
+
+            const effectiveView =
+              selectedView === "auto"
+                ? (looksLikeProperty ? "property" : contentType)
+                : selectedView;
+
+            return (
+              <>
+                {effectiveView === "image" && (
+                  <div className="flex flex-col items-center">
+                    <img
+                      src={reconstructedContent}
+                      alt={metadata?.filename || "image"}
+                      className="max-w-full max-h-96 rounded"
+                      onError={() => setError && setError("Failed to display image")}
+                    />
+                    <button
+                      onClick={() => window.open(reconstructedContent, "_blank")}
+                      className="mt-3 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm"
+                    >
+                      🔍 View Full Size
+                    </button>
+                  </div>
+                )}
+
+                {effectiveView === "text" && (
+                  <div className="bg-gray-900 rounded p-3 max-h-96 overflow-y-auto">
+                    <pre className="text-gray-300 text-sm whitespace-pre-wrap">
+                      {reconstructedContent}
+                    </pre>
+                  </div>
+                )}
+
+                {effectiveView === "video" && (
+                  <div className="flex flex-col items-center">
+                    <video
+                      controls
+                      className="max-w-full max-h-96 rounded"
+                      src={reconstructedContent}
+                    >
+                      Your browser does not support the video tag.
+                    </video>
+                  </div>
+                )}
+
+                {effectiveView === "file" && (
+                  <div className="text-center py-8">
+                    <p className="text-gray-400 mb-3">
+                      File reconstructed successfully. Click download to save.
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      File type: {metadata?.mimeType}
+                    </p>
+                  </div>
+                )}
+
+                {/* Property view with integrated PropertyViewer component */}
+                {effectiveView === "property" && (
+                  <div className="bg-gray-900 rounded p-3">
+                    <PropertyViewer content={reconstructedContent} />
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
 
@@ -537,8 +654,7 @@ export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
       </details>
     </div>
   );
-};           
-
+};
 
 
 // import React, { useState } from 'react';
