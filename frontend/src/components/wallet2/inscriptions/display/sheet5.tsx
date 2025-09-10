@@ -1,8 +1,27 @@
+// Working correctly 
+// This is with the dailog trigger / cardform thats clickable
+// sheet4 is the without alertdialog trigger version
+
+
 "use client";
 import React, { useState, useMemo } from "react";
-import { MenubarSeparator } ./sheet4
+import { MenubarSeparator } from "../../../ui/menubar";
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+ // DialogFooter,
+  DialogTitle,
+  DialogSubtitle,
+  DialogClose,
+  DialogContainer,
+} from '../../../ui/dialog2';
+// import {
+//   AlertDialogFooter,
+// } from "../../../ui/alert-dialog"
 import { useTabs } from "../../../../hooks/use-tabs";
 import { Framer } from "../../../../lib/framercard";
+import { motion } from 'framer-motion'; 
 // Icons
 import { LuBedSingle, LuBath, LuBedDouble } from "react-icons/lu";
 import {
@@ -12,14 +31,14 @@ import {
   MdOutlineDriveFileRenameOutline,
   MdOutlineNumbers,
 } from "react-icons/md";
-import { TbBedFlat } from "react-icons/tb";
+// import { TbBedFlat } from "react-icons/tb";
 import { IoPeople, IoWifi, IoFitness } from "react-icons/io5";
 import { FaCheckSquare, FaUser } from "react-icons/fa";
-import { SiGoogleclassroom } from "react-icons/si";
+// import { SiGoogleclassroom } from "react-icons/si";
 import { BsPersonVideo3, BsDatabaseAdd } from "react-icons/bs";
 import { LiaSpaSolid } from "react-icons/lia";
 import { TfiWrite } from "react-icons/tfi";
-import { CameraIcon, DoubleArrowDownIcon, DoubleArrowUpIcon } from "@radix-ui/react-icons";
+import { CameraIcon, DoubleArrowDownIcon, DoubleArrowUpIcon, StarIcon } from "@radix-ui/react-icons";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface PropertyData {
@@ -309,12 +328,19 @@ const PropertyViewer: React.FC<PropertyViewerProps> = ({ content }) => {
   const [showImages, setShowImages] = useState(true);
 
   const parsedData = useMemo(() => {
-    return parseBCATPropertyData(content);
+    const result = parseBCATPropertyData(content);
+    console.log('PropertyViewer: Parsed data:', result);
+    return result;
   }, [content]);
 
   const data = useMemo(() => {
     if (!parsedData) return null;
-    return mapToBetterPropertyStructure(parsedData.jsonData, parsedData.images);
+    const mapped = mapToBetterPropertyStructure(parsedData.jsonData, parsedData.images);
+    console.log('PropertyViewer: Mapped data:', mapped);
+    console.log('PropertyViewer: Profile image:', mapped?.profileImage);
+    console.log('PropertyViewer: Room photos:', mapped?.roomPhotos);
+    console.log('PropertyViewer: Hotel photos:', mapped?.hotelPhotos);
+    return mapped;
   }, [parsedData]);
 
   const imageCategories = useMemo(
@@ -566,111 +592,195 @@ const PropertyViewer: React.FC<PropertyViewerProps> = ({ content }) => {
   }
 
   return (
-    <div className="bg-[#121212] text-white rounded-lg shadow-md max-w-4xl mx-auto">
-      {/* Image Gallery */}
-      {imageCategories.length > 0 && showImages && (
-        <div className="relative mb-4">
+    <Dialog>
+      {/* DialogTrigger - Card View */}
+      <DialogTrigger
+        style={{ borderRadius: '12px' }}
+        className='flex justify-center align-items-center w-[250px] h-[330px] xxxxs:w-[300px] xxxxs:h-[400px] xxxs:w-[170px] xxxs:h-[267px] xxs:w-[170px] xxs:h-[267px] xs:w-[225px] xs:h-[310px] s:w-[170px] s:h-[267px] sm:w-[170px] sm:h-[267px] md:w-[165px] md:h-[267px] lg:w-[170px] lg:h-[267px] xl:w-[170px] xl:h-[267px] flex-col overflow-hidden border border-zinc-950/10 dark:border-zinc-50/10 bg-[#121212] hover:shadow-lg transition-all duration-300'
+      >
+        {/* Container with relative positioning */}
+        <div className='relative w-full h-full'>
+          {/* Image */}
           <img
-            src={imageCategories[activeImageTab].images[currentImageIndex]}
-            alt={`Property ${currentImageIndex + 1}`}
-            className="h-[400px] w-full object-cover rounded-t-lg transition-opacity duration-500 ease-in-out"
+            src={data?.alertDialogImage || data?.roomPhotos?.[0] || '/placeholder.jpg'}
+            alt={data?.alertDialogTitle || data?.propertyName || 'Property'}
+            className='h-full w-full object-cover rounded-md'
             onError={(e) => {
-              console.error('Image failed to load:', imageCategories[activeImageTab].images[currentImageIndex]);
               (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCIgZmlsbD0iIzMzMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiPkltYWdlIE5vdCBBdmFpbGFibGU8L3RleHQ+PC9zdmc+';
             }}
           />
-          <button onClick={handlePreviousImage} className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-[#000f2f]/70 text-white rounded-full p-3 hover:bg-[#001f3f]/90 transition-transform hover:scale-110">
-            <ChevronLeft size={24} />
-          </button>
-          <button onClick={handleNextImage} className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-[#000f2f]/70 text-white rounded-full p-3 hover:bg-[#001f3f]/90 transition-transform hover:scale-110">
-            <ChevronRight size={24} />
-          </button>
-        </div>
-      )}
 
-      {/* Image Category Tabs */}
-      {imageCategories.length > 0 && (
-        <div className="flex justify-between items-center mb-4 px-4">
-          <div className="flex space-x-4">
-            {imageCategories.map((category, index) => (
-              <button
-                key={index}
-                onClick={() => {
-                  setActiveImageTab(index);
-                  setCurrentImageIndex(0);
-                }}
-                className={`px-4 py-2 rounded-[8px] text-sm transition-all duration-300 ${
-                  activeImageTab === index
-                    ? "bg-gray-200 text-black underline font-bold decoration-2 decoration-blue-500"
-                    : "bg-black text-white font-light hover:bg-gray-700"
-                }`}
-              >
-                <div className="flex justify-between items-center">
-                  <div>{category.title}</div>
-                  {activeImageTab === index && <CameraIcon className="ml-2" />}
-                </div>
-              </button>
-            ))}
+          {/* Price overlay (placeholder - you can add price field to data) */}
+          <div className='absolute bottom-1 left-1 text-white text-sm bg-black bg-opacity-50 px-2 py-1 rounded'>
+            Price
           </div>
-          <button onClick={() => setShowImages(!showImages)} className="px-4 py-2 bg-blue-500 text-white rounded-[8px] flex items-center space-x-2">
-            {showImages ? (
-              <>
-                <DoubleArrowUpIcon className="scale-150" />
-                <span className="text-sm font-bold">Hide</span>
-              </>
-            ) : (
-              <>
-                <DoubleArrowDownIcon className="scale-150" />
-                <span className="text-sm font-bold">Show</span>
-              </>
-            )}
-          </button>
         </div>
-      )}
 
-      {/* Property Header */}
-      <div className="px-4 mb-4">
-        <h1 className="text-white text-3xl font-semibold mb-2">
-          {data.propertyName || data.alertDialogTitle || "Property"}
-        </h1>
-        {(data.hotelRoomDescription || data.alertDialogDescription) && (
-          <p className="text-gray-400 text-lg font-normal mb-2">
-            {data.hotelRoomDescription || data.alertDialogDescription}
-          </p>
-        )}
-        <div className="text-white space-y-1">
-          <p className="text-sm text-gray-300">
-            {data.numberOfGuests !== undefined && `${data.numberOfGuests} guests`}
-            {data.hotelRoomForOccupants && ` · ${data.hotelRoomForOccupants} bedroom`}
-            {data.hotelRoomBedType && ` · ${data.hotelRoomBedType} bed`}
-            {data.numberOfBathrooms !== undefined && ` · ${data.numberOfBathrooms} bathroom${data.numberOfBathrooms !== 1 ? 's' : ''}`}
-          </p>
+        {/* Content below the image */}
+        <div className='flex flex-col justify-end p-2'>
+          <DialogTitle className='text-white text-lg font-semibold'>
+            {data?.alertDialogTitle || data?.propertyName || 'Property'}
+          </DialogTitle>
+          <DialogSubtitle className='text-sm text-zinc-200'>
+            {data?.alertDialogDescription || data?.hotelRoomDescription || 'Property description'}
+          </DialogSubtitle>
           <div className="flex items-center space-x-1 pb-1">
-            {data.uploadDate && (
-              <>
-                <BsDatabaseAdd className="w-4 h-4" />
-                <span className="text-sm font-semibold">{data.uploadDate}</span>
-              </>
-            )}
-            {data.user && (
-              <>
-                <FaUser className="w-4 h-4 ml-4" />
-                <span className="text-sm text-blue-400">{data.user}</span>
-              </>
-            )}
+            {/* Star and rating */}
+            <StarIcon className="w-5 h-5 text-yellow-500" />
+            <span className="text-sm text-white font-semibold">
+              5.0
+            </span>
+            <span className="text-sm text-gray-300">·</span>
+            <a href="#" className="text-sm underline text-blue-400">
+              {data?.user || 'Host'}
+            </a>
           </div>
         </div>
-        <MenubarSeparator className="w-full my-4" />
-      </div>
+      </DialogTrigger>
 
-      {/* Tabs */}
-      <div className="flex justify-center pb-2">
-        <Framer.Tabs {...framer.tabProps} />
-      </div>
+      {/* DialogContainer - Full View */}
+      <DialogContainer className='overflow-y-auto max-h-screen'>
+        <DialogContent className='bg-[#121212] w-[750px] h-[850px] shadow-2xl rounded-lg relative overflow-hidden transition-all'>
+          <motion.div
+            className='p-0.5'
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ type: 'tween', duration: 0.3, ease: 'easeOut' }}
+          >
+            {/* Image Gallery */}
+            {imageCategories.length > 0 && showImages && (
+              <div className='relative'>
+                <img
+                  src={imageCategories[activeImageTab].images[currentImageIndex]}
+                  alt={`Property ${currentImageIndex + 1}`}
+                  className='h-[400px] w-full object-cover rounded-t-lg transition-opacity duration-500 ease-in-out'
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCIgZmlsbD0iIzMzMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiPkltYWdlIE5vdCBBdmFpbGFibGU8L3RleHQ+PC9zdmc+';
+                  }}
+                />
+                <div className='absolute bottom-1 left-1 text-white text-sm bg-black bg-opacity-50 px-2 py-1 rounded'>
+                  Price
+                </div>
+                <button
+                  onClick={handlePreviousImage}
+                  className='absolute left-4 top-1/2 transform -translate-y-1/2 bg-[#000f2f]/70 text-white rounded-full p-3 hover:bg-[#001f3f]/90 transition-transform hover:scale-110'
+                >
+                  <ChevronLeft size={24} />
+                </button>
+                <button
+                  onClick={handleNextImage}
+                  className='absolute right-4 top-1/2 transform -translate-y-1/2 bg-[#000f2f]/70 text-white rounded-full p-3 hover:bg-[#001f3f]/90 transition-transform hover:scale-110'
+                >
+                  <ChevronRight size={24} />
+                </button>
+              </div>
+            )}
 
-      {/* Tab Content */}
-      <div className="h-[580px] overflow-y-auto">{framer.selectedTab.children}</div>
-    </div>
+            {/* Image Category Tabs */}
+            {imageCategories.length > 0 && (
+              <div className="flex justify-between items-center mb-4 px-4">
+                <div className="flex space-x-4">
+                  {imageCategories.map((category, index) => (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        setActiveImageTab(index);
+                        setCurrentImageIndex(0);
+                      }}
+                      className={`px-4 py-2 rounded-[8px] text-sm transition-all duration-300 ${
+                        activeImageTab === index
+                          ? "bg-gray-200 text-black underline font-bold decoration-2 decoration-blue-500"
+                          : "bg-black text-white font-light hover:bg-gray-700"
+                      }`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div>{category.title}</div>
+                        {activeImageTab === index && <CameraIcon className="ml-2" />}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                <button onClick={() => setShowImages(!showImages)} className="px-4 py-2 bg-blue-500 text-white rounded-[8px] flex items-center space-x-2">
+                  {showImages ? (
+                    <>
+                      <DoubleArrowUpIcon className="scale-150" />
+                      <span className="text-sm font-bold">Hide</span>
+                    </>
+                  ) : (
+                    <>
+                      <DoubleArrowDownIcon className="scale-150" />
+                      <span className="text-sm font-bold">Show</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* Property Header */}
+            <div className="px-4 mb-4">
+              <h1 className="text-white text-3xl font-semibold mb-2">
+                {data?.propertyName || data?.alertDialogTitle || "Property"}
+              </h1>
+              {(data?.hotelRoomDescription || data?.alertDialogDescription) && (
+                <p className="text-gray-400 text-lg font-normal mb-2">
+                  {data?.hotelRoomDescription || data?.alertDialogDescription}
+                </p>
+              )}
+              <div className="text-white space-y-1">
+                <p className="text-sm text-gray-300">
+                  {data?.numberOfGuests !== undefined && `${data.numberOfGuests} guests`}
+                  {data?.hotelRoomForOccupants && ` · ${data.hotelRoomForOccupants} bedroom`}
+                  {data?.hotelRoomBedType && ` · ${data.hotelRoomBedType} bed`}
+                  {data?.numberOfBathrooms !== undefined && ` · ${data.numberOfBathrooms} bathroom${data.numberOfBathrooms !== 1 ? 's' : ''}`}
+                </p>
+                <div className="flex items-center space-x-1 pb-1">
+                  {/* Star and rating */}
+                  <StarIcon className="w-5 h-5 text-yellow-500" />
+                  <span className="text-sm font-semibold">5.0</span>
+                  {data?.uploadDate && (
+                    <>
+                      <span className="pl-4 pr-1 text-sm text-gray-300">
+                        <BsDatabaseAdd className="inline w-4 h-4" />
+                      </span>
+                      <span className="text-sm font-semibold">{data.uploadDate}</span>
+                    </>
+                  )}
+                  {data?.user && (
+                    <>
+                      <span className="pl-2 pr-1 text-sm text-gray-300">
+                        <FaUser className="inline w-4 h-4" />
+                      </span>
+                      <a href="#" className="text-sm underline text-blue-400">
+                        {data.user}@mono
+                      </a>
+                    </>
+                  )}
+                </div>
+              </div>
+              <MenubarSeparator className="w-full my-4" />
+            </div>
+
+            {/* Tabs */}
+            <div className="flex justify-center pb-2">
+              <Framer.Tabs {...framer.tabProps} />
+            </div>
+
+            {/* Tab Content */}
+            <div className="h-[580px] overflow-y-auto">
+              {framer.selectedTab.children}
+            </div>
+
+            <MenubarSeparator className="w-full mt-4" />
+          </motion.div>
+
+          {/* Close button */}
+          <DialogClose className='absolute top-4 right-4 text-white hover:text-red-500 transition-transform hover:scale-125 text-2xl'>
+            &times;
+          </DialogClose>
+        </DialogContent>
+      </DialogContainer>
+    </Dialog>
   );
 };
 

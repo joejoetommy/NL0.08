@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Utils } from '@bsv/sdk';
-import PropertyViewer from '../../inscriptions/display/sheet4';
+import PropertyViewer from '../../inscriptions/display/sheet5';
 
 interface BCATDecoderDisplayProps {
   bcatTxId: string;
