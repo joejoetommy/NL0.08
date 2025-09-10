@@ -4,7 +4,7 @@ import { BroadcastService } from '../../services/BroadcastService';
 import { imageToBase64 } from './imageUtils';
 import { calculateTransactionFee, fetchNetworkFeeRate } from './feeCalculator';
 import { BlogEncryption, EncryptionLevel } from './BlogEncryption';
-
+// BCATDecoderDisplay
 interface CreateInscriptionParams {
   inscriptionType: 'text' | 'image' | 'profile' | 'profile2';
   textData: string;
@@ -138,7 +138,7 @@ export const createInscription = async (
     lastTransactionTime
   } = params;
 
-  // Validation checks
+  // Validation checks   //  BCAT Manager Info
   if (!keyData.privateKey) {
     return {
       success: false,

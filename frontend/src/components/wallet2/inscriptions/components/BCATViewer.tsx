@@ -197,7 +197,7 @@ export const BCATViewer: React.FC<BCATViewerProps> = ({
         
         const dataHex = scriptHex.substr(dataStart, dataLength * 2);
         
-        // Check if this is a 32-byte value (transaction ID)
+        // Check if this is a 32-byte value (transaction ID)    //  BCAT Manager Info
         if (dataLength === 32) {
           // Convert hex to transaction ID (reverse for little-endian)
           let txid = '';

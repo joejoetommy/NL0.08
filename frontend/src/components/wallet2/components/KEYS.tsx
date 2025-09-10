@@ -27,6 +27,11 @@
 
 // BCAT TESTER
 // 5th key   ef519bf189c89954dfe580e4bb22980d075157ed97a2751c5542ece55d76a44b    377,094   340,991
+//  2.3kilobit https://test.whatsonchain.com/tx/79cfbabb22ae0d0f50824df0821d800bd9ad73164c9139c7087cb4abe85f56d1
+// 2.3 kilobits property https://test.whatsonchain.com/tx/14ba784c6232714834225da0f5d7171da1f1a35d7e2f90f9747e19b3c6674d8d
+// 60kilonit imag e https://test.whatsonchain.com/tx/023a52c05ee9fdfa24e470ddc54579ef8fa8efcd3d052ec6e7f188e7b5cfb724
+//  3 kilobits tiny image https://test.whatsonchain.com/tx/1ebc5a7878ecef3e515f6c55ef87be6ab32fac96b1564a8aaa74ac2ada7a6ded
+// 3 kilobits property  https://test.whatsonchain.com/tx/5ab342a88ef5d6c84e3e2a71b13967d8b2ce4f64c0a9e838e2181fd9cb38f632
 // 95MB file pushed successfully to the network https://test.whatsonchain.com/tx/22bfd08b6a1a5400b47a045e1c849c468d84714a9f668cbf98172594f99f0fd1  
 // 1st hotel listing BCAT transaction push https://test.whatsonchain.com/tx/ce050b15d94376d98f2d2165e85d04d1ae406e8bed32866d8b286e5d4a361530
 // mo7CXYyBpNYVsRHY1LZhQiZ9nQr9Nws7dH EncryptKey=   TXID= 

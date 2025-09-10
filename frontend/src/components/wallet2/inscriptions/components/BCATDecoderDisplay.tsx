@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Utils } from '@bsv/sdk';
-//import PropertyViewer from '../components/wallet2/inscriptions/display/sheet1';
-import PropertyViewer from '../../inscriptions/display/sheet2';
+import PropertyViewer from '../../inscriptions/display/sheet4';
 
 interface BCATDecoderDisplayProps {
   bcatTxId: string;
@@ -21,66 +20,104 @@ interface BCATDecoderDisplayProps {
 // BCAT part namespace
 const BCAT_PART_NAMESPACE = '1ChDHzdd1H4wSjgGMHyndZm6qxEDGjqpJL';
 
-/** Lightweight parser: JSON → key/value; otherwise INI / "key: value" / "key=value" lines */
-function parseProperties(text = "") {
-  if (!text || typeof text !== "string") return [];
-
-  // Try JSON first
+/** 
+ * Parse property data from reconstructed BCAT content
+ * This handles the special format where JSON and images are combined
+ */
+function parsePropertyData(data: Uint8Array): { json: any; images: Map<string, Uint8Array> } {
+  const images = new Map<string, Uint8Array>();
+  let jsonData: any = null;
+  
   try {
-    const obj = JSON.parse(text);
-    if (obj && typeof obj === "object") {
-      return Object.entries(obj).map(([k, v]) => [k, formatValue(v)]);
+    let offset = 0;
+    
+    // First, try to read JSON size (4 bytes)
+    if (offset + 4 <= data.length) {
+      const jsonSize = new DataView(data.buffer, data.byteOffset + offset, 4).getUint32(0, true);
+      offset += 4;
+      
+      // Read JSON data
+      if (offset + jsonSize <= data.length) {
+        const jsonBytes = data.slice(offset, offset + jsonSize);
+        const jsonText = new TextDecoder().decode(jsonBytes);
+        try {
+          jsonData = JSON.parse(jsonText);
+          offset += jsonSize;
+        } catch (e) {
+          console.log('Failed to parse JSON at expected position, trying alternative parsing');
+          // Reset offset and try alternative parsing
+          offset = 0;
+        }
+      }
     }
-  } catch (_) {}
-
-  // Fallback: parse "key: value" or "key=value" lines
-  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  const rows = [];
-  for (const line of lines) {
-    const m = line.match(/^([^:=]+)\s*[:=]\s*(.+)$/);
-    if (m) rows.push([m[1].trim(), m[2].trim()]);
+    
+    // If standard parsing failed, try to find JSON in the data
+    if (!jsonData) {
+      const textData = new TextDecoder().decode(data);
+      // Look for JSON structure
+      const jsonMatch = textData.match(/\{[\s\S]*?\}(?=([A-Z]|$))/);
+      if (jsonMatch) {
+        try {
+          jsonData = JSON.parse(jsonMatch[0]);
+          // Find where JSON ends to continue with image parsing
+          const jsonEndIndex = new TextEncoder().encode(jsonMatch[0]).length;
+          offset = jsonEndIndex;
+        } catch (e) {
+          console.log('Alternative JSON parsing failed');
+        }
+      }
+    }
+    
+    // Try to extract images if we have remaining data
+    while (offset < data.length - 8) { // Need at least 8 bytes for label size + image size
+      try {
+        // Read label size (4 bytes)
+        const labelSize = new DataView(data.buffer, data.byteOffset + offset, 4).getUint32(0, true);
+        offset += 4;
+        
+        if (labelSize > 1000 || offset + labelSize > data.length) break; // Sanity check
+        
+        // Read label
+        const labelBytes = data.slice(offset, offset + labelSize);
+        const label = new TextDecoder().decode(labelBytes);
+        offset += labelSize;
+        
+        if (offset + 4 > data.length) break;
+        
+        // Read image size (4 bytes)
+        const imageSize = new DataView(data.buffer, data.byteOffset + offset, 4).getUint32(0, true);
+        offset += 4;
+        
+        if (imageSize > data.length - offset) break; // Sanity check
+        
+        // Read image data
+        const imageData = data.slice(offset, offset + imageSize);
+        offset += imageSize;
+        
+        images.set(label, imageData);
+        console.log(`Extracted image: ${label}, size: ${imageSize} bytes`);
+      } catch (e) {
+        console.log('Error extracting image, stopping image extraction');
+        break;
+      }
+    }
+    
+    // If we still don't have JSON, try parsing the entire thing as JSON
+    if (!jsonData) {
+      try {
+        const fullText = new TextDecoder().decode(data);
+        jsonData = JSON.parse(fullText);
+      } catch (e) {
+        console.log('Could not parse as pure JSON');
+      }
+    }
+    
+  } catch (error) {
+    console.error('Error parsing property data:', error);
   }
-  return rows;
+  
+  return { json: jsonData, images };
 }
-
-function formatValue(v: any): string {
-  if (v == null) return "";
-  if (typeof v === "string") return v;
-  if (typeof v === "number" || typeof v === "boolean") return String(v);
-  return JSON.stringify(v, null, 2);
-}
-
-// interface PropertyViewerProps {
-//   content: string;
-// }
-
-// function PropertyViewer({ content }: PropertyViewerProps) {
-//   const rows = useMemo(() => parseProperties(content), [content]);
-
-//   if (!rows.length) {
-//     // Graceful fallback: show raw text when we can't parse properties
-//     return (
-//       <pre className="text-gray-300 text-sm whitespace-pre-wrap">
-//         {content || "(no readable properties)"}
-//       </pre>
-//     );
-//   }
-
-//   return (
-//     <div className="max-h-96 overflow-y-auto">
-//       <table className="w-full text-sm">
-//         <tbody>
-//           {rows.map(([k, v], idx) => (
-//             <tr key={idx} className="border-b border-gray-800">
-//               <td className="py-2 pr-3 text-gray-400 align-top w-1/3">{k}</td>
-//               <td className="py-2 text-gray-200 whitespace-pre-wrap">{v}</td>
-//             </tr>
-//           ))}
-//         </tbody>
-//       </table>
-//     </div>
-//   );
-// }
 
 export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
   bcatTxId,
@@ -97,8 +134,9 @@ export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
   const [encryptionKey, setEncryptionKey] = useState<string>('');
   const [isEncrypted, setIsEncrypted] = useState(false);
   const [fileBlob, setFileBlob] = useState<Blob | null>(null);
+  const [rawData, setRawData] = useState<Uint8Array | null>(null);
   
-  const [selectedView, setSelectedView] = useState("auto"); // "auto" | "image" | "text" | "video" | "file" | "property"
+  const [selectedView, setSelectedView] = useState("auto");
 
   // Convert namespace to hex for comparison
   const namespaceToHex = (namespace: string): string => {
@@ -117,8 +155,6 @@ export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
 
       console.log(`Fetching chunk ${chunkIndex + 1} from TX: ${txid}`);
       
-      // For BCAT parts, we need to get the data from OP_RETURN output
-      // First, let's get the transaction to understand its structure
       const txResponse = await fetch(
         `https://api.whatsonchain.com/v1/bsv/${network === 'testnet' ? 'test' : 'main'}/tx/hash/${txid}`,
         { headers }
@@ -130,9 +166,7 @@ export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
 
       const txData = await txResponse.json();
       
-      // Find OP_RETURN output (should be vout[0] for BCAT parts)
-      const opReturnOutput = txData.vout.find((out: any, index: number) => {
-        // BCAT parts have OP_RETURN in first output with 0 value
+      const opReturnOutput = txData.vout.find((out: any) => {
         return out.value === 0 && out.scriptPubKey?.asm?.startsWith('OP_RETURN');
       });
       
@@ -140,21 +174,15 @@ export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
         throw new Error(`No OP_RETURN found in chunk ${chunkIndex + 1}`);
       }
 
-      // Get the ASM to understand the structure
       const asm = opReturnOutput.scriptPubKey.asm;
       console.log(`Chunk ${chunkIndex + 1} ASM preview:`, asm.substring(0, 200));
       
-      // Parse ASM format: "OP_RETURN 31436844487a... <large_hex_data>"
       const asmParts = asm.split(' ');
       
       if (asmParts.length >= 3 && asmParts[0] === 'OP_RETURN') {
-        // asmParts[1] should be the namespace hex
-        // asmParts[2] should be the actual data hex
-        
         const namespaceHex = asmParts[1];
         const dataHex = asmParts[2];
         
-        // Verify this is a BCAT_PART transaction
         let namespaceStr = '';
         try {
           for (let i = 0; i < namespaceHex.length; i += 2) {
@@ -170,7 +198,6 @@ export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
         
         console.log(`Found BCAT_PART data in chunk ${chunkIndex + 1}, data length: ${dataHex.length / 2} bytes`);
         
-        // Convert hex to Uint8Array
         const data = new Uint8Array(dataHex.length / 2);
         for (let i = 0; i < dataHex.length; i += 2) {
           data[i / 2] = parseInt(dataHex.substr(i, 2), 16);
@@ -180,67 +207,22 @@ export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
         return data;
       }
       
-      // If ASM parsing failed, try the hex approach but with a warning about size limits
       const scriptHex = opReturnOutput.scriptPubKey.hex;
       
       console.log(`Script hex length: ${scriptHex.length} characters (${scriptHex.length / 2} bytes)`);
-      console.log(`This represents ${(scriptHex.length / 2 / 1024).toFixed(2)}KB of script data`);
       
       if (scriptHex.length >= 99000) {
-        // The hex is truncated
         console.warn(`Chunk ${chunkIndex + 1} script appears to be truncated by API.`);
-        console.warn(`Script hex ends at ${scriptHex.length} characters`);
         
-        // Try to extract what we can from the truncated hex
-        // Skip OP_RETURN (6a) and namespace
-        let pos = 2;
-        
-        // Skip namespace (34 bytes preceded by push opcode)
-        if (scriptHex.substr(pos, 2) === '22') { // Push 34
-          pos += 2 + (34 * 2);
-        }
-        
-        // Check for data push opcode
-        const dataOpcode = scriptHex.substr(pos, 2);
-        if (dataOpcode === '4c' || dataOpcode === '4d' || dataOpcode === '4e') {
-          pos += 2;
-          let dataLength = 0;
-          
-          if (dataOpcode === '4c') { // OP_PUSHDATA1
-            dataLength = parseInt(scriptHex.substr(pos, 2), 16);
-          } else if (dataOpcode === '4d') { // OP_PUSHDATA2
-            const lengthBytes = scriptHex.substr(pos, 4);
-            dataLength = parseInt(lengthBytes.substr(0, 2), 16) + 
-                        (parseInt(lengthBytes.substr(2, 2), 16) << 8);
-          } else if (dataOpcode === '4e') { // OP_PUSHDATA4
-            const lengthBytes = scriptHex.substr(pos, 8);
-            dataLength = parseInt(lengthBytes.substr(0, 2), 16) + 
-                        (parseInt(lengthBytes.substr(2, 2), 16) << 8) +
-                        (parseInt(lengthBytes.substr(4, 2), 16) << 16) +
-                        (parseInt(lengthBytes.substr(6, 2), 16) << 24);
-          }
-          
-          console.log(`Chunk declares ${dataLength} bytes (${(dataLength / 1024).toFixed(2)}KB) of data`);
-          console.log(`But API only returned ${scriptHex.length / 2} bytes of script`);
-          
-          throw new Error(
-            `WhatsOnChain API returned ${(scriptHex.length / 2 / 1024).toFixed(2)}KB of script data, ` +
-            `but chunk contains ${(dataLength / 1024).toFixed(2)}KB.\n\n` +
-            `The API appears to truncate at around ${(scriptHex.length / 2 / 1024).toFixed(0)}KB.\n\n` +
-            `To retrieve this file, you can:\n` +
-            `1. Use smaller chunk sizes (try <${Math.floor(scriptHex.length / 2 / 1024 * 0.9)}KB)\n` +
-            `2. Use a BSV node with JSON-RPC access\n` +
-            `3. Use specialized BCAT tools\n\n` +
-            `Transaction: ${txid}`
-          );
-        }
+        throw new Error(
+          `WhatsOnChain API returned truncated data for chunk ${chunkIndex + 1}.\n` +
+          `The file may be too large for the API.\n\n` +
+          `Transaction: ${txid}`
+        );
       }
       
-      // Try to parse the hex manually
-      console.log(`Attempting to parse hex for chunk ${chunkIndex + 1}, script length: ${scriptHex.length}`);
-      
-      // Parse the OP_RETURN data
-      let pos = 2; // Skip OP_RETURN (6a)
+      // Manual hex parsing fallback
+      let pos = 2; // Skip OP_RETURN
       let foundNamespace = false;
       let dataHex = '';
       
@@ -252,20 +234,16 @@ export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
         let dataStart = pos;
         
         if (opcode <= 75) {
-          // Direct push
           dataLength = opcode;
           dataStart = pos + 2;
         } else if (opcode === 0x4c && pos + 4 <= scriptHex.length) {
-          // OP_PUSHDATA1
           dataLength = parseInt(scriptHex.substr(pos + 2, 2), 16);
           dataStart = pos + 4;
         } else if (opcode === 0x4d && pos + 6 <= scriptHex.length) {
-          // OP_PUSHDATA2
           dataLength = parseInt(scriptHex.substr(pos + 2, 2), 16) + 
                        (parseInt(scriptHex.substr(pos + 4, 2), 16) << 8);
           dataStart = pos + 6;
         } else if (opcode === 0x4e && pos + 10 <= scriptHex.length) {
-          // OP_PUSHDATA4
           dataLength = parseInt(scriptHex.substr(pos + 2, 2), 16) + 
                        (parseInt(scriptHex.substr(pos + 4, 2), 16) << 8) +
                        (parseInt(scriptHex.substr(pos + 6, 2), 16) << 16) +
@@ -283,9 +261,7 @@ export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
         
         const currentDataHex = scriptHex.substr(dataStart, dataLength * 2);
         
-        // Check if this is the namespace
         if (!foundNamespace) {
-          // Convert to string to check
           let dataAsString = '';
           try {
             for (let i = 0; i < currentDataHex.length; i += 2) {
@@ -300,7 +276,6 @@ export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
             console.log(`Found BCAT_PART namespace at position ${pos}`);
           }
         } else if (!dataHex) {
-          // This should be our actual data
           dataHex = currentDataHex;
           console.log(`Found chunk data at position ${pos}, length: ${dataLength} bytes`);
           break;
@@ -310,10 +285,9 @@ export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
       }
       
       if (!foundNamespace || !dataHex) {
-        throw new Error(`Failed to extract data from chunk ${chunkIndex + 1}. The transaction structure may be incompatible.`);
+        throw new Error(`Failed to extract data from chunk ${chunkIndex + 1}`);
       }
       
-      // Convert hex to Uint8Array
       const data = new Uint8Array(dataHex.length / 2);
       for (let i = 0; i < dataHex.length; i += 2) {
         data[i / 2] = parseInt(dataHex.substr(i, 2), 16);
@@ -335,11 +309,11 @@ export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
     setError('');
     setReconstructedContent('');
     setFileBlob(null);
+    setRawData(null);
     
     try {
       const chunks: Uint8Array[] = [];
       
-      // Fetch and extract each chunk
       for (let i = 0; i < chunkTxIds.length; i++) {
         setProgress({ current: i + 1, total: chunkTxIds.length });
         
@@ -347,13 +321,11 @@ export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
         const chunkData = await extractChunkData(chunkTxIds[i], i);
         chunks.push(chunkData);
         
-        // Small delay to avoid rate limiting
         if (i < chunkTxIds.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
       
-      // Combine all chunks
       const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
       const combined = new Uint8Array(totalLength);
       let offset = 0;
@@ -365,20 +337,23 @@ export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
       
       console.log(`Reconstructed file: ${totalLength} bytes`);
       
-      // Handle gzip decompression if flagged
       let finalData = combined;
       if (metadata.flag === 'gzip') {
-        // For now, we'll handle gzipped data as-is
-        // In production, you'd use a library like pako to decompress
         console.log('File is gzipped. Handling as compressed data.');
       }
       
-      // Create blob from data
+      // Store raw data for property viewer
+      setRawData(finalData);
+      
       const mimeType = metadata.mimeType || 'application/octet-stream';
       const blob = new Blob([finalData], { type: mimeType });
       setFileBlob(blob);
       
-      // Determine content type and handle display
+      // Check if this might be property data
+      const filename = metadata.filename || '';
+      const looksLikeProperty = filename.toLowerCase().includes('property') || 
+                               filename.toLowerCase().includes('title_prop');
+      
       if (mimeType.startsWith('image/')) {
         setContentType('image');
         const url = URL.createObjectURL(blob);
@@ -393,13 +368,28 @@ export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
         setReconstructedContent(url);
       } else {
         setContentType('file');
-        // For other file types, we'll just enable download
-        // But also try to decode as text for property viewing
+        // Try to decode as text for property viewing
         try {
           const text = new TextDecoder().decode(finalData);
           setReconstructedContent(text);
+          
+          // If it looks like property data, try to enhance it
+          if (looksLikeProperty) {
+            const { json, images } = parsePropertyData(finalData);
+            if (json) {
+              // Create enhanced content for PropertyViewer
+              const enhancedContent = {
+                ...json,
+                _images: Array.from(images.entries()).map(([label, data]) => ({
+                  label,
+                  data: btoa(String.fromCharCode(...data))
+                }))
+              };
+              setReconstructedContent(JSON.stringify(enhancedContent));
+            }
+          }
         } catch (e) {
-          // Can't decode as text, that's fine
+          console.log('Cannot decode as text');
         }
       }
       
@@ -431,15 +421,40 @@ export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  // Decrypt content (placeholder for future implementation)
+  // Decrypt content (placeholder)
   const decryptContent = async () => {
     if (!encryptionKey.trim()) {
       setError('Please enter an encryption key');
       return;
     }
     
-    // TODO: Implement decryption logic
     setError('Decryption not yet implemented');
+  };
+
+  // Prepare content for PropertyViewer when needed
+  const getPropertyViewerContent = () => {
+    if (!rawData) return reconstructedContent;
+    
+    // Try to parse the raw data for property format
+    const { json, images } = parsePropertyData(rawData);
+    
+    if (json) {
+      // Convert images to base64 URLs and embed in JSON
+      const imageUrls: any = {};
+      images.forEach((imageData, label) => {
+        const base64 = btoa(String.fromCharCode(...imageData));
+        const mimeType = 'image/jpeg'; // Assume JPEG, adjust as needed
+        imageUrls[label] = `data:${mimeType};base64,${base64}`;
+      });
+      
+      // Return enhanced JSON string for PropertyViewer
+      return JSON.stringify({
+        ...json,
+        _embeddedImages: imageUrls
+      });
+    }
+    
+    return reconstructedContent;
   };
 
   return (
@@ -558,10 +573,9 @@ export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
           </div>
 
           {(() => {
-            // Detect special filename and choose effective view
             const filename = (metadata?.filename || "").trim();
             const looksLikeProperty =
-              /(^|\s)Filename:\s*Properety\s+title_prop\b/i.test(filename) ||
+              filename.toLowerCase().includes("property") ||
               filename.toLowerCase().includes("title_prop");
 
             const effectiveView =
@@ -619,10 +633,10 @@ export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
                   </div>
                 )}
 
-                {/* Property view with integrated PropertyViewer component */}
+                {/* Property view with enhanced content */}
                 {effectiveView === "property" && (
                   <div className="bg-gray-900 rounded p-3">
-                    <PropertyViewer content={reconstructedContent} />
+                    <PropertyViewer content={getPropertyViewerContent()} />
                   </div>
                 )}
               </>
@@ -655,6 +669,32 @@ export const BCATDecoderDisplay: React.FC<BCATDecoderDisplayProps> = ({
     </div>
   );
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 // import React, { useState } from 'react';
