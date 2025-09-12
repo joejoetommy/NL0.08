@@ -4,6 +4,7 @@ import { calculateTransactionFee } from '../utils/feeCalculator';
 // import { validateImageFile, imageToBase64, getImageDimensions } from '../utils/imageUtils';
 import { ImageInscriptionViewer } from './ImageInscriptionViewer';
 
+
 interface CreateImageInscriptionProps {
   imageFile: File | null;
   setImageFile: (file: File | null) => void;

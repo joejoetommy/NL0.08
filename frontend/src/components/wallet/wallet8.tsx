@@ -3,10 +3,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { Utils } from '@bsv/sdk';
-import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from '../../components/ui/pagination';
-import { Switch } from '../../components/ui/switch';
-import { Label } from "../../components/ui/label";
-import { BCATDecoderDisplay } from '../../components/wallet2/inscriptions/components/BCATDecoderDisplay';
+import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from '../ui/pagination';
+import { Switch } from '../ui/switch';
+import { Label } from "../ui/label";
+import { BCATDecoderDisplay } from '../wallet2/inscriptions/components/BCATDecoderDisplay';
 
 // PropertyViewer component would be imported here
 // import PropertyViewer from './PropertyViewer';

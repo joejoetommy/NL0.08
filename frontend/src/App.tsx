@@ -6,6 +6,7 @@ import Layout from './components/Layout';
 // Lazy load pages for better performance
 const HomePage = React.lazy(() => import('./pages/ProfilePage'));
 const ExplorePage = React.lazy(() => import('./pages/ContactsPage'));
+const ContentPage = React.lazy(() => import('./pages/ContentsPage'));
 const WalletPage = React.lazy(() => import('./pages/WalletPage'));
 const MessagesPage = React.lazy(() => import('./pages/MessagesPage'));
 
@@ -37,6 +38,11 @@ const App: React.FC = () => {
           <Route path="explore" element={
             <React.Suspense fallback={<PageLoader />}>
               <ExplorePage />
+            </React.Suspense>
+          } />
+          <Route path="content" element={
+            <React.Suspense fallback={<PageLoader />}>
+              <ContentPage />
             </React.Suspense>
           } />
           <Route path="Wallet" element={

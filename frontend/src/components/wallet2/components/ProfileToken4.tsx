@@ -10,7 +10,7 @@ export const ProfileToken: React.FC = () => {
   return (
     <div>
       <div className="mb-4 p-4 bg-gradient-to-r from-purple-900 to-pink-900 bg-opacity-20 rounded-lg border border-purple-700">
-        <h2 className="text-xl font-semibold text-white">1Sat Ordinals Creator</h2>
+        <h2 className="text-xl font-semibold text-white">Sat Ordinals Creator</h2>
         <p className="text-sm text-gray-300 mt-1">Create text, image, or profile inscriptions on BSV</p>
       </div>
 

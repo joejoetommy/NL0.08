@@ -1,6 +1,6 @@
 // Working correctly 
-// This is with the dailog trigger / cardform thats clickable
-// sheet4 is the without alertdialog trigger version
+// This is without the dailog trigger / cardform thats clickable
+// sheet4 is the withoutalertdialog trigger version
 
 
 "use client";
