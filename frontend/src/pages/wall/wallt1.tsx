@@ -9,6 +9,9 @@ const WallT1: React.FC = () => {
 
     <div className="container mx-auto p-4">
         <h1>WallT1</h1>
+
+
+
     </div>
   );
 };

@@ -1,9 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+
 // import Image from 'next/image';
 // import { imageData } from '@/components/data/(wall)/wallt1';
 // import { imageDataTag } from '@/components/data/(wall)/walltag';
 // import { videoShorts } from '@/components/data/(wall)/wallt2';
 // import { WallPost } from '@/components/models/(wall)/PostType';
+import React, { useState, useRef, useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import WallT1 from '../../pages/wall/wallt1';
 import WallT2 from '../../pages/wall/wallt2';

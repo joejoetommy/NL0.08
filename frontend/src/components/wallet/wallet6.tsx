@@ -15,7 +15,7 @@ const WalletApp: React.FC = () => {
   
   const {
     network,
-    setNetwork,
+     
     keyData,
     setContacts,
     updateContactSharedSecrets
@@ -108,7 +108,7 @@ const WalletApp: React.FC = () => {
             {/* Network Selector */}
             <div className="flex space-x-2">
               <button
-                onClick={() => setNetwork('mainnet')}
+                onClick={() =>  ('mainnet')}
                 className={`px-3 py-2 rounded-lg font-medium text-sm transition-colors ${
                   network === 'mainnet'
                     ? 'bg-blue-500 text-white'
@@ -118,7 +118,7 @@ const WalletApp: React.FC = () => {
                 Mainnet
               </button>
               <button
-                onClick={() => setNetwork('testnet')}
+                onClick={() =>  ('testnet')}
                 className={`px-3 py-2 rounded-lg font-medium text-sm transition-colors ${
                   network === 'testnet'
                     ? 'bg-green-500 text-white'

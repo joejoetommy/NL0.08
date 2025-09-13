@@ -9,15 +9,15 @@ import { Framer } from '../../lib/framer';
 
 // import ProfilePage from '@/components/Account/profile';
 
-import PowPage from '@/components/Account/pow';
+// import PowPage from '@/components/Account/pow';
             // import NetworkPage from '@/components/Account/network'; 
             // import ReviewPage from '@/components/Account/reviews';
-import AccountReview from '@/components/Account/accountreview';
+// import AccountReview from '@/components/Account/accountreview';
 import { Avatar, AvatarFallback, AvatarImage } from "../../components/ui/avatar";
 
 
-import { MdAccountBox } from "react-icons/md";
-import { RxComponent2 } from "react-icons/rx";
+// import { MdAccountBox } from "react-icons/md";
+// import { RxComponent2 } from "react-icons/rx";  import WallPage from '../../components/profile/wall';
 import { Icon } from '@iconify/react';
 import HomeFeed from '../../components/profile/Profile1';
 import WallPage from '../../components/profile/wall';
@@ -43,7 +43,7 @@ const HomePage = () => {
         displayName: 'Profile',
       },
             {
-        label: <Icon icon="iconamoon:profile-circle-fill" width="32" height="32" />,
+        label: <Icon icon="fluent-mdl2:web-components" width="32" height="32" />,
         children: <WallPage />,
         id: 'Profile',
         displayName: 'Profile',
