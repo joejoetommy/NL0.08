@@ -1,127 +1,217 @@
 // Profile.tsx - Enhanced with profile change detection
-'use client';
-// Home feed
-import React, { useState } from 'react';
 
-import useScrollingEffect from '../../hooks/use-scroll';
-import { useTabs } from '../../hooks/use-tabs';
-import { Framer } from '../../lib/framer';
+import React, { useState, useEffect } from 'react';
+import { FaEnvelope } from 'react-icons/fa';
+import { BsQrCode } from 'react-icons/bs';
+import { NetworkRequest } from './FormCards/profile/networkrequest';
+import { XpubDisplay } from './FormCards/profile/xpubdisplay';
+import { 
+  getProfileData, 
+  getCurrentProfileNumber,
+  ProfileData 
+} from './data/profiledata';
+import DMProfile from './item/dmprofile';
+import SettingProfile from './item/settingprofile';
 
-// import ProfilePage from '@/components/Account/profile';
+// Custom event for profile changes - must match the one in settingprofile.tsx
+const PROFILE_CHANGE_EVENT = 'profileChanged';
 
-import PowPage from '@/components/Account/pow';
-            // import NetworkPage from '@/components/Account/network'; 
-            // import ReviewPage from '@/components/Account/reviews';
-import AccountReview from '@/components/Account/accountreview';
-import { Avatar, AvatarFallback, AvatarImage } from "../../components/ui/avatar";
+const Profile: React.FC = () => {
+  const [profileData, setProfileData] = useState<ProfileData>(getProfileData());
+  const [currentProfileNumber, setCurrentProfileNumber] = useState(getCurrentProfileNumber());
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
+  const [showNetworkDialog, setShowNetworkDialog] = useState<boolean>(false);
+  // const [isExpanded1, setIsExpanded1] = useState<boolean>(false);
 
-
-import { MdAccountBox } from "react-icons/md";
-import { RxComponent2 } from "react-icons/rx";
-import { Icon } from '@iconify/react';
-import HomeFeed from '../../components/profile/Profile1';
-import WallPage from '../../components/profile/wall';
-
-interface TabInfo {
-  id: string;
-  displayName: string;
-}
-
-// <Icon icon="mdi:cards-heart" width="32" height="32" />   <Icon icon="fluent-mdl2:web-components" /> blue
-const HomePage = () => {
-  const scrollDirection = useScrollingEffect();
-  const headerClass =
-    scrollDirection === 'up' ? 'translate-y-0' : 'translate-y-[-50%]';
-
-    
-  const [hookProps] = useState({
-    tabs: [
-      {
-        label: <Icon icon="iconamoon:profile-circle-fill" width="32" height="32" />,
-        children: <HomeFeed />,
-        id: 'Profile',
-        displayName: 'Profile',
-      },
-            {
-        label: <Icon icon="iconamoon:profile-circle-fill" width="32" height="32" />,
-        children: <WallPage />,
-        id: 'Profile',
-        displayName: 'Profile',
-      }
-      // {
-      //   label: <Icon icon="fluent-mdl2:web-components" width="32" height="32" />,
-      //   children: <WallPage />,
-      //   id: 'Wall',
-      //   displayName: 'Wall',
-      // },
-      // {
-      //   label: <Icon icon="akar-icons:link-chain" width="32" height="32" />,
-      //   children: <PowPage />,
-      //   id: 'POW',
-      //   displayName: 'Proof on-Chain',
-      // },
-      // {
-      //   label: <Icon icon="mdi:account-group" width="32" height="32" />,
-      //   children: <NetworkPage />,
-      //   id: 'Network',
-      //   displayName: 'Network',
-      // },
-      // {
-      //   label: <Icon icon="fluent-mdl2:account-activity" width="32" height="32" />,
-      //   children: <ReviewPage />,
-      //   id: 'Reviews',
-      //   displayName: 'Reviews',
-      // },
-      // {
-      //   label: <Icon icon="fluent-mdl2:account-activity" width="32" height="32" />,
-      //   children: <AccountReview />,
-      //   id: 'Reviews',
-      //   displayName: 'Account reviews',
-      // },
-    ],
-    initialTabId: 'Profile',
-  });
-  const framer = useTabs(hookProps);
-
- 
-    // State to hold the currently active tab's display name
-   const [activeTabDisplayName, setActiveTabDisplayName] = useState<string>('displayName');
-  
-    // Handler to update the active tab
-    const handleTabClick = (tab: TabInfo) => {
-      setActiveTabDisplayName(tab.displayName);
+  // Listen for profile changes
+  useEffect(() => {
+    const handleProfileChange = () => {
+      const newProfileData = getProfileData();
+      const newProfileNumber = getCurrentProfileNumber();
+      setProfileData(newProfileData);
+      setCurrentProfileNumber(newProfileNumber);
     };
-    
+
+    // Listen for custom profile change event
+    window.addEventListener(PROFILE_CHANGE_EVENT, handleProfileChange);
+
+    // Check for changes periodically (fallback)
+    const interval = setInterval(() => {
+      const currentNumber = getCurrentProfileNumber();
+      if (currentNumber !== currentProfileNumber) {
+        handleProfileChange();
+      }
+    }, 500);
+
+    return () => {
+      window.removeEventListener(PROFILE_CHANGE_EVENT, handleProfileChange);
+      clearInterval(interval);
+    };
+  }, [currentProfileNumber]);
+
+  const handleClick = (): void => {
+    setIsExpanded(!isExpanded);
+    setShowNetworkDialog(true);
+  };
+
+  // const handleClick1 = (): void => {
+  //   setIsExpanded1(!isExpanded1);
+  // };
+
+  const [isOpen2, setIsOpen2] = useState<boolean>(false);
+  const [isOpen3, setIsOpen3] = useState<boolean>(false);
+  const handleOpen2 = (): void => setIsOpen2(true);
+  const handleClose2 = (): void => setIsOpen2(false);
+  const handleOpen3 = (): void => setIsOpen3(true);
+  const handleClose3 = (): void => setIsOpen3(false);
+
+  // Handle profile update callback from SettingProfile
+  const handleProfileUpdate = () => {
+    const newProfileData = getProfileData();
+    setProfileData(newProfileData);
+  };
+
+  // Function to render image or color
+  const renderImage = (src: string, alt: string, className: string) => {
+    if (src && src.startsWith('#')) {
+      // It's a color code
+      return (
+        <div 
+          className={className}
+          style={{ backgroundColor: src }}
+        />
+      );
+    }
+    // It's an image URL
+    return (
+      <img
+        src={src}
+        alt={alt}
+        className={className}
+      />
+    );
+  };
 
   return (
-    <div className="flex flex-col flex-1">
-      <div
-        className={`flex flex-col border-b border-zinc-700 sticky inset-x-0 pt-2 top-0 z-30 w-full transition-all backdrop-blur-xl  ${headerClass} md:translate-y-0`}
-      >
-        <div className="flex justify-between">
-      
-        <span className=" flex px-4 font-bold text-2xl">{framer.selectedTab.displayName}
-        </span>
-            <div className="flex justify-end pr-6" >
-              <Avatar className="flex">
-              <AvatarImage src="" alt="@shadcn" />
-              <AvatarFallback>NL</AvatarFallback>
-              </Avatar>
+    <div className="container mx-auto p-1">
+      <div className="flex justify-center mb-4">
+        <div className="relative h-64 w-full">
+          {renderImage(
+            profileData.backgroundImage,
+            "Background Image",
+            "rounded w-full h-full object-cover"
+          )}
+          <div className="absolute right-0 pr-6 transform bottom-[-64px]">
+            <div className="border-4 border-white rounded-full w-32 h-32 overflow-hidden">
+              {renderImage(
+                profileData.profileImage,
+                "Profile",
+                "w-32 h-32 object-cover"
+              )}
             </div>
-        </div>
-        <div className="flex flex-row w-full items-center justify-around mt-4">
-          <Framer.Tabs {...framer.tabProps} />
+          </div>
         </div>
       </div>
 
-      <div className="pt-10 flex  flex-1 h-screen">
-        {framer.selectedTab.children}
+      <div>
+        <div className="relative w-full flex items-center border-bottom">
+          <div className="absolute pl-5 pb-3 left-2 flex space-x-12">
+            <div className="relative">
+              <FaEnvelope className="cursor-pointer" onClick={handleOpen3} />
+              {isOpen3 && 
+                <DMProfile isOpen3={isOpen3} onClose3={handleClose3} />}
+            </div>
+            <div className="relative">
+              <BsQrCode className="cursor-pointer" onClick={handleOpen2} />
+              {isOpen2 && 
+                <XpubDisplay isOpen2={isOpen2} onClose2={handleClose2} />}
+            </div>
+            <div className="relative">
+            </div>
+          </div>
+          <div className='absolute pt-8 right-10 flex'>
+            <SettingProfile 
+              className="absolute cursor-pointer" 
+              onProfileUpdate={handleProfileUpdate}
+            />  
+          </div>
+          <div className="pt-4">
+            <div className="absolute pt-18 left-2 flex text-center items-center">
+              <p className="text-ms font-bold cursor-pointer">
+                {profileData.Profile.username}
+              </p>
+              <p className="text-ms font-bold">@NL</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+                {/* <div className="w-full flex">
+            <div className="absolute text-align-center pl-2 pb-6 pt-10 left-2 flex text-center items-center text-xl font-bold">
+              <p className="text-s font-bold cursor-pointer">
+                {profileData.Profile.title}
+              </p>
+            </div>
+          </div>
+
+      <div className="w-full pt-11">
+        <div className="flex w-full mt-4">
+          <div className="flex-1 flex justify-center items-center p-3">
+            <div className="flex items-center space-x-3 mb-2">
+              <p className="t-2 line-clamp-4 overflow-hidden">
+                {profileData.Profile.mision}
+              </p>
+            </div>
+          </div>
+        </div>
+
+
+      </div> */}
+<div className="w-full">
+  <div className="p-3 mt-4">
+    <p className="text-s font-bold cursor-pointer mb-2">
+      {profileData.Profile.title}
+    </p>
+    <p className="t-2 line-clamp-4 overflow-hidden">
+      {profileData.Profile.mision}
+    </p>
+  </div>
+</div>
+
+      <div className="mt-4">
+        <div className="flex flex-col w-full">
+          <div className="flex w-full">
+            <div className="flex-1 flex flex-col items-start pl-4">
+              <button
+                className="group relative min-w-[11rem] h-12 overflow-hidden rounded-[16px] border border-neutral-200 bg-gray-500 bg-opacity-60 px-4 text-neutral-950"
+                onClick={handleClick}
+              >
+                <span className="relative inline-flex">
+                  Net
+                  <span className="duration-700 [transition-delay:0.02s] group-hover:[transform:rotateY(360deg)]"></span>
+                  <span className="duration-700 [transition-delay:0.08s] group-hover:[transform:rotateY(360deg)]">w</span>
+                  <span className="duration-700 [transition-delay:0.10s] group-hover:[transform:rotateY(360deg)]">o</span>
+                  <span className="duration-700 [transition-delay:0.12s] group-hover:[transform:rotateY(360deg)]">r</span>
+                  <span className="duration-700 [transition-delay:0.14s] group-hover:[transform:rotateY(360deg)]">k</span>
+                  {isExpanded && (
+                    <>
+                      <span className="duration-700 [transition-delay:0.16s] group-hover:[transform:rotateY(360deg)]">i</span>
+                      <span className="duration-700 [transition-delay:0.18s] group-hover:[transform:rotateY(360deg)]">n</span>
+                      <span className="duration-700 [transition-delay:0.20s] group-hover:[transform:rotateY(360deg)]">g</span>
+                    </>
+                  )}
+                </span>
+              </button>
+              <NetworkRequest open={showNetworkDialog} onOpenChange={setShowNetworkDialog} />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
 };
 
-export default HomePage;
+export default Profile;
 
 
 

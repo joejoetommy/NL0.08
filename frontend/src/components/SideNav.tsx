@@ -19,6 +19,7 @@ const SideNav: React.FC = () => {
    //  const isProfileActive = location.pathname === '/profile';
   const isHomeActive = location.pathname === '/';
   const isExploreActive = location.pathname === '/explore';
+  //  const isContentActive = location.pathname === '/content';
   const isWalletActive = location.pathname === '/wallet';
   const isMessagesActive = location.pathname === '/messages';
 
@@ -75,6 +76,19 @@ const SideNav: React.FC = () => {
       Explore
     </span>
   </Link>
+    {/* <Link
+    to="/content"
+    className="flex flex-row space-x-4 items-center px-4 py-3 rounded-full duration-200 hover:bg-white/10"
+  >
+    <div className={isContentActive ? 'rounded-full border-2 border-sky-500 p-1 bg-black' : ''}>
+      <Search size={38} className={isContentActive ? 'text-white stroke-[2.5]' : 'text-gray-500'} />
+    </div>
+    <span
+      className={`text-2xl pt-2 hidden md:flex ${isContentActive ? 'font-bold' : ''}`}
+    >
+      Content
+    </span>
+  </Link> */}
 
   <Link
     to="/wallet"
