@@ -9,7 +9,7 @@ import { CreateLargeProfileInscription1 } from './2CreateLargeProfileInscription
 import { CreateEncryptedPropertyInscription } from './CreateEncryptedPropertyInscription';
 //  import { CreateEncryptedPropertyInscription } from './CreateEncryptedPropertyInscription';
 // import { CreateLargeProfileInscription1 } from './CreateLargeProfileInscription1';
-import { BCATManager } from './BCATComponent';
+//import { BCATManager } from './BCATComponent';
 import { InscriptionTypeSelector } from './InscriptionTypeSelector';
 import { EncryptionOptions } from './EncryptionOptions';
 import { TransactionStatus } from './TransactionStatus';

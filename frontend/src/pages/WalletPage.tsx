@@ -19,16 +19,16 @@ import React, { useState } from 'react';
 import Wallet from '../components/wallet/wallet4'; // This is ECDH WORKING
 // import Wallet from '../components/wallet/wallet5'; // This has  TYPE-42 on  development
 import WalletApp from '../components/wallet/wallet6';
-import { CreateLargeProfileInscription1 } from '../components/wallet2/inscriptions/components/sheetwalls/sheet001';
+// import { CreateLargeProfileInscription1 } from '../components/wallet2/inscriptions/components/sheetwalls/sheet001';
 // import WalletProfile from '../components/wallet/profilewallet';
 // import mintProfileDataToken from '../components/wallet/profiledatatoken';
 
   const tabComponents = {
     Wallet: <Wallet  />,
     WalletApp: <WalletApp />,
-        CreateLargeProfileInscription1:               
+        // CreateLargeProfileInscription1:               
         
-        <CreateLargeProfileInscription1
+        // <CreateLargeProfileInscription1
                         // keyData={keyData}
                         // network={network}
                         // whatsOnChainApiKey={whatsOnChainApiKey}
@@ -38,7 +38,7 @@ import { CreateLargeProfileInscription1 } from '../components/wallet2/inscriptio
                         // setStatus={setStatus}
                         // setLastTxid={setLastTxid}
                         // setLastTransactionTime={setLastTransactionTime}
-                      />,
+                     // />,
        // WalletProfile: <WalletProfile />,
   };
 
@@ -76,7 +76,7 @@ const WalletPage: React.FC = () => {
                           <div className="absolute bottom-0 left-0 right-0 h-1 bg-sky-500 rounded-full"></div>
                         )}
                       </button>
-                                                                  <button
+                                                                  {/* <button
                         onClick={() => setActiveTab('CreateLargeProfileInscription1')}
                         className={`flex-1 py-4 hover:bg-white/10 transition-colors relative ${
                           activeTab === 'WalletApp' ? 'font-bold' : 'text-gray-500'
@@ -86,7 +86,7 @@ const WalletPage: React.FC = () => {
                         {activeTab === 'CreateLargeProfileInscription1' && (
                           <div className="absolute bottom-0 left-0 right-0 h-1 bg-sky-500 rounded-full"></div>
                         )}
-                      </button>
+                      </button> */}
                                             {/* <button
                         onClick={() => setActiveTab('WalletProfile')}
                         className={`flex-1 py-4 hover:bg-white/10 transition-colors relative ${

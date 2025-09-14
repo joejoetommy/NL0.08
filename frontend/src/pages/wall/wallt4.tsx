@@ -1,33 +1,74 @@
 import React, { useState, useEffect } from 'react';
-import { useWalletStore } from '@/store/WalletStore';
-import { fetchInscriptionsFromChain } from '@/utils/inscriptionFetcher';
-import { BlogEncryption } from '@/utils/BlogEncryption';
+import { useWalletStore } from '../../components/wallet2/store/WalletStore';
+import { fetchInscriptionsFromChain } from '../../components/wallet2/inscriptions/utils/inscriptionFetcher';
+// import { fetchInscriptionsFromChain } from '../utils/inscriptionFetcher';
+import { BlogEncryption } from '../../components/wallet2/inscriptions/utils/BlogEncryption';
 import {
   Dialog,
   DialogTrigger,
   DialogContent,
   DialogClose,
   DialogContainer,
-} from '@/components/core/dialog';
-import { ScrollArea } from '@/components/core/scroll-area';
-import { Button } from '@/components/ui/button';
-import { SearchToken } from '@/components/item/(wallt4items)/searchToken';
-import { Switch } from '@/components/ui/switch';
-import { AddWallt4 } from '@/components/item/(wallt4items)/addWallt4';
-import { Label } from '@/components/ui/label';
-import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
+} from '../../components/ui/dialog3';
+// import { ScrollArea } from '../../components/ui/scroll-area';
+// import { Button } from '../../components/ui/button';
+import { SearchToken } from './searchToken';
+import { Switch } from '../../components/ui/switch';
+import { AddWallt4 } from './addWallt4';
+import { Label } from '../../components/ui/label';
+import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from '../../components/ui/pagination';
 
-// Transform inscription data to wall post format
+
+
+// For interaction buttons (commented out as per your code)
+// import { DrawerComment } from '@/components/Frames/comments/pow';
+// import { DrawerShare } from '@/components/Frames/share/pow';
+// import { DrawerTip } from '@/components/Frames/tip/pow';
+// import { DrawerSave } from '@/components/Frames/save/pow';
+// import { DrawerLikes } from '@/components/Frames/likes/pow';
+// import { DrawerDislikes } from '@/components/Frames/dislikes/pow';
+
+// Transform inscription data to post format
 const transformInscriptionToPost = (inscription: any) => {
   const content = inscription.content || {};
+  
+  // Check if this is a text inscription with title/content structure
+  if (inscription.inscriptionType === 'text' && typeof content === 'object' && content.title) {
+    return {
+      id: inscription.txid,
+      title: content.title || 'Untitled',
+      user: inscription.origin || 'Unknown',
+      content: content.content || content.text || 'No content',
+      imageUrl: content.image || '/api/placeholder/200/200',
+      type: content.type || 'Article',
+      date: inscription.timestamp,
+      createdAt: new Date(inscription.timestamp).toLocaleDateString(),
+      encrypted: inscription.encrypted || false,
+      encryptionLevel: inscription.encryptionLevel || 0,
+      txid: inscription.txid,
+      vout: inscription.vout,
+      size: inscription.size,
+      // Mock interaction data - would be fetched from chain
+      Interact: {
+        Likes: [],
+        Dislikes: [],
+        Tip: [],
+        Comment: []
+      },
+      commentList: []
+    };
+  }
+  
+  // Handle profile inscriptions (backwards compatibility)
   return {
     id: inscription.txid,
     title: content.username || 'Anonymous',
     user: inscription.origin || 'Unknown',
-    content: content.bio || 'On-chain profile',
-    imageUrl: content.avatar || '/api/placeholder/200/200',
-    backgroundImage: content.background || null,
-    type: inscription.inscriptionType === 'profile2' ? 'Profile+' : 'Profile',
+    content: content.bio || content.text || 'On-chain content',
+    imageUrl: content.avatar || content.image || '/api/placeholder/200/200',
+    type: inscription.inscriptionType === 'profile2' ? 'Profile+' : 
+          inscription.inscriptionType === 'profile' ? 'Profile' : 
+          content.type || 'Article',
     date: inscription.timestamp,
     createdAt: new Date(inscription.timestamp).toLocaleDateString(),
     encrypted: inscription.encrypted || false,
@@ -35,7 +76,13 @@ const transformInscriptionToPost = (inscription: any) => {
     txid: inscription.txid,
     vout: inscription.vout,
     size: inscription.size,
-    bcatInfo: inscription.bcatInfo || null
+    Interact: {
+      Likes: [],
+      Dislikes: [],
+      Tip: [],
+      Comment: []
+    },
+    commentList: []
   };
 };
 
@@ -77,8 +124,11 @@ const DialogBasicTwo: React.FC<{ post: any; index: number }> = ({ post }) => {
         damping: 24,
       }}
     >
+      {/* Display Dialog Trigger */}
       <DialogTrigger
-        style={{ borderRadius: '4px' }}
+        style={{
+          borderRadius: '4px',
+        }}
         className="p-2 cursor-pointer"
       >
         <div className="flex flex-col bg-gray-900 text-white rounded-lg border border-gray-700 p-3 relative">
@@ -100,7 +150,7 @@ const DialogBasicTwo: React.FC<{ post: any; index: number }> = ({ post }) => {
 
           {/* Top Section */}
           <div className="flex flex-row">
-            {/* Avatar */}
+            {/* Album Art / Image */}
             <div className="border border-grey-700 pt-2 pl-2 relative flex-shrink-0 w-24 h-24 rounded-md overflow-hidden">
               <img
                 src={post.imageUrl}
@@ -111,172 +161,157 @@ const DialogBasicTwo: React.FC<{ post: any; index: number }> = ({ post }) => {
 
             {/* Right Section */}
             <div className="flex-1 flex flex-col ml-4 space-y-3">
-              {/* Username */}
+              {/* Title */}
               <div className="flex items-center space-x-3">
                 <p className="text-lg font-semibold truncate">{post.title}</p>
               </div>
 
-              {/* Address and Created At */}
+              {/* User and Created At */}
               <div className="flex items-center justify-between text-xs">
-                <div className="font-mono truncate max-w-[150px]" title={post.user}>
-                  {post.user.substring(0, 8)}...{post.user.substring(post.user.length - 6)}
-                </div>
+                <div className="font-semibold">{post.user.substring(0, 8)}...{post.user.substring(post.user.length - 6)}</div>
                 <div>{post.createdAt}</div>
-              </div>
-
-              {/* Type Badge */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs px-2 py-1 bg-gray-700 rounded">
-                  {post.type}
-                </span>
-                {post.bcatInfo && (
-                  <span className="text-xs px-2 py-1 bg-purple-700 rounded">
-                    BCAT
-                  </span>
-                )}
               </div>
             </div>
           </div>
 
-          {/* Bottom Row: Bio Content */}
+          {/* Bottom Row: Review Content */}
           <div className="mt-4">
             <p className="rounded w-full">
               {formatReviewContent(post.content, expandedReviewIds.includes(post.id), () => toggleReadMore(post.id))}
             </p>
           </div>
 
-          {/* Transaction Info */}
-          <div className="mt-2 pt-2 border-t border-gray-800">
-            <a
-              href={`https://${network === 'testnet' ? 'test.' : ''}whatsonchain.com/tx/${post.txid}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-blue-400 hover:text-blue-300 font-mono"
-              onClick={(e) => e.stopPropagation()}
-            >
-              TX: {post.txid.substring(0, 12)}...
-            </a>
-          </div>
+          {/* Interaction Buttons - Uncomment when drawers are available */}
+          {/* <div className="mt-4">
+            <div className="flex flex-wrap gap-2 items-center">
+              <div className="flex items-center bg-gray-700 text-white p-1 rounded cursor-pointer">
+                <DrawerLikes image={post} className="w-0 h-0" />
+                <span className="text-sm">{post.Interact.Likes.length}</span>
+              </div>
+              <div className="flex items-center bg-gray-700 text-white p-1 rounded">
+                <DrawerDislikes image={post} className="w-0 h-0" />
+                <span className="text-sm">{post.Interact.Dislikes.length}</span>
+              </div>
+              <div className="flex items-center bg-gray-700 text-white p-1 rounded cursor-pointer">
+                <DrawerTip className="w-0 h-0" />
+                <span className="text-sm">{post.Interact.Tip.length}</span>
+              </div>
+              <div className="bg-gray-700 p-1 rounded cursor-pointer">
+                <DrawerShare image={post} className="w-0 h-0 text-white" />
+              </div>
+              <div className="bg-gray-700 p-1 rounded cursor-pointer">
+                <DrawerSave image={post} className="w-0 h-0 text-white" />
+              </div>
+              <div className="flex items-center bg-gray-700 text-white p-1 rounded cursor-pointer">
+                <DrawerComment image={post} className="w-0 h-0 text-white" />
+                <span className="text-sm">{post.Interact.Comment.length}</span>
+              </div>
+            </div>
+          </div> */}
         </div>
       </DialogTrigger>
 
-      {/* Dialog Content - Full Profile View */}
+      {/* Dialog Content */}
       <DialogContainer>
         <DialogContent
-          style={{ borderRadius: '12px' }}
-          className="relative h-auto w-[600px] max-h-[90vh] overflow-y-auto border border-gray-100 bg-white"
+          style={{
+            borderRadius: '12px',
+          }}
+          className="relative h-auto w-[500px] border border-gray-100 bg-white"
           onClick={preventClose}
           onMouseDown={preventClose}
         >
-          {/* Background Image for Profile2 */}
-          {post.type === 'Profile+' && post.backgroundImage && (
-            <div className="absolute top-0 left-0 w-full h-48 overflow-hidden rounded-t-lg">
-              <img 
-                src={post.backgroundImage} 
-                alt="Background" 
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-b from-transparent to-white/90"></div>
-            </div>
-          )}
-
-          <div className={`relative ${post.type === 'Profile+' && post.backgroundImage ? 'pt-32' : ''} p-6`}>
-            {/* Profile Header */}
-            <div className="flex items-start gap-4">
+          <div className="flex font-sans">
+            <div className="flex-none w-48 relative">
               <img 
                 src={post.imageUrl}
                 alt={post.title} 
-                className="w-32 h-32 rounded-full object-cover border-4 border-gray-200"
+                className="pt-2 pl-2 absolute inset-0 w-full h-full object-cover border border-grey-700" 
+                loading="lazy" 
               />
-              <div className="flex-1">
-                <h1 className="text-2xl font-bold text-gray-900">{post.title}</h1>
-                <p className="text-sm text-gray-600 font-mono mt-1">
-                  {post.user}
-                </p>
-                <div className="flex gap-2 mt-2">
-                  <span className="text-xs px-2 py-1 bg-gray-200 rounded">
-                    {post.type}
-                  </span>
-                  {post.encrypted && (
-                    <span className={`text-xs px-2 py-1 rounded text-white ${
-                      post.encryptionLevel === 5 ? 'bg-red-600' :
-                      post.encryptionLevel === 4 ? 'bg-purple-600' :
-                      post.encryptionLevel === 3 ? 'bg-indigo-600' :
-                      post.encryptionLevel === 2 ? 'bg-yellow-600' :
-                      post.encryptionLevel === 1 ? 'bg-amber-600' :
-                      'bg-gray-600'
-                    }`}>
-                      🔒 Level {post.encryptionLevel}
-                    </span>
-                  )}
+            </div>
+            <form className="flex-auto p-6">
+              <div className="flex flex-wrap">
+                <h1 className="flex-auto text-lg font-semibold text-slate-900">
+                  {post.title}
+                </h1>
+                <div className="text-lg font-semibold text-slate-500">
+                  {post.user.substring(0, 12)}...
+                </div>
+                <div className="w-full flex-none text-sm font-medium text-slate-700 mt-2">
+                  {post.type} • {post.createdAt}
+                </div>
+                <div className="w-full flex-none text-sm font-medium text-slate-700">
+                  {/* Interaction Buttons - Uncomment when drawers are available */}
+                  {/* <div className="flex flex-wrap pt-4 gap-1 items-center">
+                    <div className="flex items-center bg-gray-700 text-white p-1 rounded cursor-pointer">
+                      <DrawerLikes image={post} className="w-2 h-2" />
+                      <span className="text-sm">{post.Interact.Likes.length}</span>
+                    </div>
+                    <div className="flex items-center bg-gray-700 text-white p-1 rounded">
+                      <DrawerDislikes image={post} className="w-2 h-2" />
+                      <span className="text-sm">{post.Interact.Dislikes.length}</span>
+                    </div>
+                    <div className="flex items-center bg-gray-700 text-white p-1 rounded cursor-pointer">
+                      <DrawerTip className="w-2 h-2" />
+                      <span className="text-sm">{post.Interact.Tip.length}</span>
+                    </div>
+                    <div className="bg-gray-700 p-1 rounded cursor-pointer">
+                      <DrawerShare image={post} className="w-2 h-2 text-white" />
+                    </div>
+                    <div className="bg-gray-700 p-1 rounded cursor-pointer">
+                      <DrawerSave image={post} className="w-2 h-2 text-white" />
+                    </div>
+                    <div className="flex items-center bg-gray-700 text-white p-1 rounded cursor-pointer">
+                      <DrawerComment image={post} className="w-2 h-2 text-white" />
+                      <span className="text-sm">{post.Interact.Comment.length}</span>
+                    </div>
+                  </div> */}
                 </div>
               </div>
-            </div>
+              <div className="flex space-x-4 mb-6 text-sm font-medium"></div>
+            </form>
+          </div>
 
-            {/* Bio Content */}
-            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">Bio</h3>
-              <p className="text-gray-800 whitespace-pre-wrap">{post.content}</p>
+          <div className="p-6 space-y-4 text-gray-700">
+            {/* Content (Scrollable Section) */}
+            <div
+              className="max-h-[300px] overflow-auto p-2 border border-gray-200 rounded"
+              style={{
+                wordBreak: 'break-word',
+              }}
+            >
+              <p className="text-base">{post.content}</p>
             </div>
+          </div>
 
-            {/* Metadata */}
-            <div className="mt-6 grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-gray-500">Created:</span>
-                <span className="ml-2 text-gray-700">{post.createdAt}</span>
-              </div>
-              <div>
-                <span className="text-gray-500">Size:</span>
-                <span className="ml-2 text-gray-700">~{(post.size / 1024).toFixed(2)}KB</span>
-              </div>
-              <div>
-                <span className="text-gray-500">Output:</span>
-                <span className="ml-2 text-gray-700">{post.vout}</span>
-              </div>
-              {post.encrypted && (
-                <div>
-                  <span className="text-gray-500">Access Level:</span>
-                  <span className="ml-2 text-gray-700">
-                    {post.encryptionLevel === 5 ? 'Owner Only' :
-                     post.encryptionLevel === 4 ? 'Inner Circle' :
-                     post.encryptionLevel === 3 ? 'Friends' :
-                     post.encryptionLevel === 2 ? 'Followers' :
-                     post.encryptionLevel === 1 ? 'Subscribers' :
-                     'Public'}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Action Buttons */}
-            <div className="mt-6 flex gap-2">
-              <a
-                href={`https://1satordinals.com/inscription/${post.user}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors"
-              >
-                View on 1SatOrdinals
-              </a>
+          {/* Transaction Info */}
+          <div className="px-6 pb-4">
+            <div className="text-xs text-gray-500">
               <a
                 href={`https://${network === 'testnet' ? 'test.' : ''}whatsonchain.com/tx/${post.txid}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500 transition-colors"
+                className="text-blue-500 hover:text-blue-400"
               >
-                View Transaction
+                View on blockchain →
               </a>
-              <button
-                onClick={() => navigator.clipboard.writeText(post.txid)}
-                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500 transition-colors"
-              >
-                Copy TXID
-              </button>
             </div>
           </div>
 
           {/* Close Button */}
-          <DialogClose className='absolute top-3 right-3 text-gray-600 hover:text-red-500 text-2xl transition-transform hover:scale-110'>
+          <button
+            className="absolute bg-gray-900 text-white px-4 py-2 rounded-full"
+            style={{
+              bottom: '3px',
+              right: '3px',
+            }}
+            onClick={preventClose}
+          >
+            X
+          </button>
+
+          <DialogClose className='absolute top-1 right-3 text-black hover:text-red-500 transition-transform hover:scale-125'>
             &times;
           </DialogClose>
         </DialogContent>
@@ -296,8 +331,8 @@ const WallT4: React.FC = () => {
 
   const { keyData, network, whatsOnChainApiKey, blogKeyHistory, getKeySegmentForLevel } = useWalletStore();
 
-  // Fetch profile inscriptions from blockchain
-  const fetchProfiles = async () => {
+  // Fetch inscriptions from blockchain
+  const fetchPosts = async () => {
     if (!keyData.address) {
       setError('Please connect your wallet first');
       return;
@@ -313,17 +348,17 @@ const WallT4: React.FC = () => {
         whatsOnChainApiKey
       );
 
-      // Filter for profile inscriptions only
-      const profileInscriptions = inscriptions.filter(
+      // Filter for text inscriptions and profiles
+      const relevantInscriptions = inscriptions.filter(
         (inscription: any) => 
+          inscription.inscriptionType === 'text' || 
           inscription.inscriptionType === 'profile' || 
-          inscription.inscriptionType === 'profile2' ||
-          inscription.inscriptionType === 'largeProfile'
+          inscription.inscriptionType === 'profile2'
       );
 
-      // Decrypt encrypted profiles if we have the keys
-      const decryptedProfiles = await Promise.all(
-        profileInscriptions.map(async (inscription: any) => {
+      // Decrypt encrypted content if we have the keys
+      const decryptedPosts = await Promise.all(
+        relevantInscriptions.map(async (inscription: any) => {
           if (inscription.encrypted && inscription.content?.encrypted) {
             try {
               const keySegment = getKeySegmentForLevel(inscription.encryptionLevel || 0);
@@ -341,28 +376,28 @@ const WallT4: React.FC = () => {
                 inscription.content = JSON.parse(decryptedStr);
               }
             } catch (error) {
-              console.error('Failed to decrypt profile:', error);
+              console.error('Failed to decrypt content:', error);
             }
           }
           return inscription;
         })
       );
 
-      const transformedPosts = decryptedProfiles.map(transformInscriptionToPost);
+      const transformedPosts = decryptedPosts.map(transformInscriptionToPost);
       setPosts(transformedPosts);
       setFilteredPosts(transformedPosts);
     } catch (error) {
-      console.error('Error fetching profiles:', error);
-      setError('Failed to fetch profile inscriptions');
+      console.error('Error fetching posts:', error);
+      setError('Failed to fetch inscriptions');
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch profiles on mount
+  // Fetch posts on mount
   useEffect(() => {
     if (keyData.address) {
-      fetchProfiles();
+      fetchPosts();
     }
   }, [keyData.address]);
 
@@ -372,9 +407,7 @@ const WallT4: React.FC = () => {
       const matchesContent = searchContent ? post.content.toLowerCase().includes(searchContent.toLowerCase()) : true;
       const matchesStartDate = startDate ? new Date(post.date) >= new Date(startDate) : true;
       const matchesEndDate = endDate ? new Date(post.date) <= new Date(endDate) : true;
-      const matchesType = type !== 'All' ? 
-        (type === 'Profile' ? post.type === 'Profile' : 
-         type === 'Profile+' ? post.type === 'Profile+' : true) : true;
+      const matchesType = type !== 'All' ? post.type === type : true;
 
       return matchesTitle && matchesContent && matchesStartDate && matchesEndDate && matchesType;
     });
@@ -394,9 +427,8 @@ const WallT4: React.FC = () => {
   };
 
   const onReviewAdded = (newPost: any) => {
-    // This will be called when a new inscription is created
-    // We'll refresh the list instead of manually adding
-    fetchProfiles();
+    // Refresh the list after new post created
+    fetchPosts();
   };
 
   const getSortedPosts = () => {
@@ -418,7 +450,7 @@ const WallT4: React.FC = () => {
       <div className="container mx-auto p-4">
         <div className="text-center py-8">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
-          <p className="text-gray-300 mt-2">Loading profile inscriptions...</p>
+          <p className="text-gray-300 mt-2">Loading posts...</p>
         </div>
       </div>
     );
@@ -430,7 +462,7 @@ const WallT4: React.FC = () => {
         <div className="text-center py-8">
           <p className="text-red-400">{error}</p>
           <button
-            onClick={fetchProfiles}
+            onClick={fetchPosts}
             className="mt-4 px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600"
           >
             Retry
@@ -454,7 +486,7 @@ const WallT4: React.FC = () => {
         <div className="flex items-center space-x-2">
           <AddWallt4 onReviewAdded={onReviewAdded} />
           <button
-            onClick={fetchProfiles}
+            onClick={fetchPosts}
             className="px-3 py-1 bg-gray-700 text-white rounded hover:bg-gray-600"
           >
             🔄 Refresh
@@ -471,8 +503,8 @@ const WallT4: React.FC = () => {
 
       {currentPosts.length === 0 ? (
         <div className="text-center py-8">
-          <p className="text-gray-400">No profile inscriptions found</p>
-          <p className="text-xs text-gray-500 mt-2">Create your first profile inscription to see it here</p>
+          <p className="text-gray-400">No posts found</p>
+          <p className="text-xs text-gray-500 mt-2">Create your first post to see it here</p>
         </div>
       ) : (
         <>
@@ -505,7 +537,6 @@ const WallT4: React.FC = () => {
 };
 
 export default WallT4;
-
 
 
 

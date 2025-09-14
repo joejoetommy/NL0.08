@@ -11,7 +11,7 @@ export const calculateTransactionFee = (
   const outputSize = numOutputs * 34; // Average P2PKH output size
   const inscriptionOverhead = 20; // Reduced - actual overhead for inscription structure
 
-  // Calculate total transaction size
+  // Calculate total transaction size  fetchInscriptionsFromChain
   const totalSizeBytes = baseSize + inputSize + outputSize + inscriptionOverhead + dataSize;
   const totalSizeKB = totalSizeBytes / 1000;
 

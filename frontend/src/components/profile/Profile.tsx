@@ -21,6 +21,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "../../components/ui/avatar"
 import { Icon } from '@iconify/react';
 import HomeFeed from '../../components/profile/Profile1';
 import WallPage from '../../components/profile/wall';
+import { useWalletStore } from '../../components/wallet2/store/WalletStore';
 
 interface TabInfo {
   id: string;
@@ -32,19 +33,20 @@ const HomePage = () => {
   const scrollDirection = useScrollingEffect();
   const headerClass =
     scrollDirection === 'up' ? 'translate-y-0' : 'translate-y-[-50%]';
+      const { network } = useWalletStore();
 
     
   const [hookProps] = useState({
     tabs: [
       {
         label: <Icon icon="iconamoon:profile-circle-fill" width="32" height="32" />,
-        children: <HomeFeed />,
+        children: <HomeFeed network={network} />,
         id: 'Profile',
         displayName: 'Profile',
       },
             {
         label: <Icon icon="fluent-mdl2:web-components" width="32" height="32" />,
-        children: <WallPage />,
+        children: <WallPage network={network} />,
         id: 'Profile',
         displayName: 'Profile',
       }
