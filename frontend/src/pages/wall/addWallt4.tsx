@@ -1,7 +1,6 @@
       // Import image utilities
      //  const { imageToBase64 } = await import('../../components/wallet2/inscriptions/utils/imageUtils');
 
-
 import React, { useState, useEffect } from 'react';
 import { useWalletStore } from '../../components/wallet2/store/WalletStore';
 import { createInscription } from '../../components/wallet2/inscriptions/utils/inscriptionCreator';
@@ -12,7 +11,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
- DialogClose,
+  DialogClose,
   DialogDescription,
   DialogTitle,
   DialogTrigger,
@@ -22,15 +21,7 @@ import { Textarea } from "../../components/ui/textarea";
 import { Label } from "../../components/ui/label";
 import { UploadCloud } from "lucide-react";
 import { toast } from "../../components/ui/use-toast";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../components/ui/select";
 import { Switch } from "../../components/ui/switch";
-
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, FormProvider, SubmitHandler } from "react-hook-form";
@@ -82,14 +73,21 @@ export function AddWallt4({ onReviewAdded }: { onReviewAdded: (newPost: any) => 
     
     // Get form values
     const values = methods.getValues();
-    const postData = { 
-      title: values.title, 
-      content: values.content,
-      type: values.type
+    
+    // Calculate using the new wallt4 structure
+    const wallt4Object = {
+      protocol: 'wallt4',
+      version: '1.0',
+      data: {
+        title: values.title,
+        content: values.content,
+        type: values.type,
+        timestamp: Date.now()
+      }
     };
     
     // Calculate text data size
-    totalBytes += new TextEncoder().encode(JSON.stringify(postData)).length;
+    totalBytes += new TextEncoder().encode(JSON.stringify(wallt4Object)).length;
     
     // Add image size
     if (image) {
@@ -127,30 +125,37 @@ export function AddWallt4({ onReviewAdded }: { onReviewAdded: (newPost: any) => 
       const keySegment = getKeySegmentForLevel(encryptionLevel);
       if (!keySegment) throw new Error('No key segment available');
       
-      // Prepare post data for encryption
-      const postDataToSave: any = {
-        title: values.title,
-        content: values.content,
-        type: values.type,
-        timestamp: Date.now()
+      // Prepare wallt4 structured data for encryption
+      const wallt4Object = {
+        protocol: 'wallt4',
+        version: '1.0',
+        encrypted: true,
+        data: {
+          title: values.title,
+          content: values.content,
+          type: values.type,
+          timestamp: Date.now()
+        }
       };
       
       // Add image if present
       if (image) {
-const { imageToBase64 } = await import('../../components/wallet2/inscriptions/utils/imageUtils');
+        const { imageToBase64 } = await import('../../components/wallet2/inscriptions/utils/imageUtils');
         const base64Data = await imageToBase64(image, undefined, true, undefined, 'image');
-        postDataToSave.image = `data:${image.type};base64,${base64Data}`;
+        wallt4Object.data['image'] = `data:${image.type};base64,${base64Data}`;
       }
       
       const { encryptedData, metadata } = await BlogEncryption.prepareEncryptedInscription(
-        postDataToSave,
+        wallt4Object,
         encryptionLevel,
         keySegment
       );
       
       const wrapper = {
+        protocol: 'wallt4',
+        version: '1.0',
         encrypted: true,
-        originalType: 'text',
+        encryptionLevel,
         data: encryptedData,
         metadata
       };
@@ -191,28 +196,20 @@ const { imageToBase64 } = await import('../../components/wallet2/inscriptions/ut
     setLoading(true);
     
     try {
-      // Prepare the content object with structure matching display expectations
-      const contentObj = {
-        title: data.title,
-        content: data.content,
-        type: data.type,
-        timestamp: Date.now()
-      };
+      let imageData: string | undefined;
       
-      // Add image if present
+      // Process image if present
       if (image) {
         const { imageToBase64 } = await import('../../components/wallet2/inscriptions/utils/imageUtils');
         const base64Data = await imageToBase64(image, undefined, true, undefined, 'image');
-        contentObj['image'] = `data:${image.type};base64,${base64Data}`;
+        imageData = `data:${image.type};base64,${base64Data}`;
       }
       
-      // Create text inscription with structured content
-      const textData = encryptionLevel > 0 ? encryptedData : JSON.stringify(contentObj);
-      
+      // Use the new wallt4 inscription type
       const result = await createInscription({
-        inscriptionType: 'text',
-        textData,
-        imageFile: null,
+        inscriptionType: 'wallt4',
+        textData: '', // Not used for wallt4
+        imageFile: null, // We handle image separately
         profileData: { username: '', title: '', bio: '', avatar: '' },
         profileImageFile: null,
         backgroundImageFile: null,
@@ -223,12 +220,19 @@ const { imageToBase64 } = await import('../../components/wallet2/inscriptions/ut
         whatsOnChainApiKey,
         blogKeyHistory,
         currentFeeRate,
-        lastTransactionTime: 0
+        lastTransactionTime: 0,
+        // Pass wallt4-specific data
+        wallt4Data: {
+          title: data.title,
+          content: data.content,
+          type: data.type,
+          image: imageData
+        }
       });
       
       if (result.success) {
         toast({
-          title: "Post added successfully!",
+          title: "Wallt4 post created successfully!",
           description: (
             <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
               <code className="text-white">TX: {result.txid?.substring(0, 32)}...</code>
@@ -279,13 +283,13 @@ const { imageToBase64 } = await import('../../components/wallet2/inscriptions/ut
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Add New Post</DialogTitle>
+            <DialogTitle>Add New Wallt4 Post</DialogTitle>
           </DialogHeader>
           <div className="overflow-y-auto max-h-96 p-2">
             <FormProvider {...methods}>
               <form onSubmit={methods.handleSubmit(handleAddReview)} className="space-y-4">
                 <FormItem>
-                  <FormLabel>Upload Image</FormLabel>
+                  <FormLabel>Upload Image (Optional)</FormLabel>
                   {image && (
                     <div className="relative border border-blue-700 p-0 flex items-center justify-center w-full h-64 relative overflow-hidden">
                       <img
@@ -318,7 +322,7 @@ const { imageToBase64 } = await import('../../components/wallet2/inscriptions/ut
                       </Label>
                     </div>
                   )}
-                  <p className="mt-2 text-gray-600">Total data size: {totalSizeMb} Mb</p>
+                  <p className="mt-2 text-gray-600">Total data size: {totalSizeMb} MB</p>
                 </FormItem>
                 
                 <FormField
@@ -415,10 +419,12 @@ const { imageToBase64 } = await import('../../components/wallet2/inscriptions/ut
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirm Post Creation</DialogTitle>
+            <DialogTitle>Confirm Wallt4 Post Creation</DialogTitle>
             <DialogDescription>
               <br />
-              Total data size: {totalSizeMb} Mb
+              Total data size: {totalSizeMb} MB
+              <br />
+              Estimated fee: {estimatedFee} sats
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -436,16 +442,6 @@ const { imageToBase64 } = await import('../../components/wallet2/inscriptions/ut
     </>
   );
 }
-
-
-
-
-
-
-
-
-
-
 
 
 

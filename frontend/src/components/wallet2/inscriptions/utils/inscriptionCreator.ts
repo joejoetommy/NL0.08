@@ -4,9 +4,9 @@ import { BroadcastService } from '../../services/BroadcastService';
 import { imageToBase64 } from './imageUtils';
 import { calculateTransactionFee, fetchNetworkFeeRate } from './feeCalculator';
 import { BlogEncryption, EncryptionLevel } from './BlogEncryption';
-// BCATDecoderDisplay
+
 interface CreateInscriptionParams {
-  inscriptionType: 'text' | 'image' | 'profile' | 'profile2';
+  inscriptionType: 'text' | 'image' | 'profile' | 'profile2' | 'wallt4';
   textData: string;
   imageFile: File | null;
   profileData: {
@@ -25,6 +25,13 @@ interface CreateInscriptionParams {
   blogKeyHistory: any;
   currentFeeRate: number;
   lastTransactionTime: number;
+  // New field for wallt4 data
+  wallt4Data?: {
+    title: string;
+    content: string;
+    type: 'Article' | 'Snippet';
+    image?: string;
+  };
 }
 
 interface CreateInscriptionResult {
@@ -34,85 +41,78 @@ interface CreateInscriptionResult {
   message: string;
 }
 
+// Helper function to create proper push data opcode
+const createPushDataOpcode = (length: number): string => {
+  if (length <= 75) {
+    return length.toString(16).padStart(2, '0');
+  } else if (length <= 255) {
+    return '4c' + length.toString(16).padStart(2, '0');
+  } else if (length <= 65535) {
+    return '4d' + 
+           (length & 0xff).toString(16).padStart(2, '0') + 
+           ((length >> 8) & 0xff).toString(16).padStart(2, '0');
+  } else {
+    return '4e' + 
+           (length & 0xff).toString(16).padStart(2, '0') + 
+           ((length >> 8) & 0xff).toString(16).padStart(2, '0') + 
+           ((length >> 16) & 0xff).toString(16).padStart(2, '0') + 
+           ((length >> 24) & 0xff).toString(16).padStart(2, '0');
+  }
+};
+
 // Create the inscription script with proper handling for large data
 export const createInscriptionScript = (
   pubKeyHash: number[], 
   contentType: string, 
   data: Uint8Array
 ): Script => {
-  let scriptHex = '';
-  
   try {
+    // Build script in parts for better control
+    const parts: string[] = [];
+    
     // P2PKH locking script prefix
-    scriptHex += '76a914';
-    scriptHex += pubKeyHash.map(b => b.toString(16).padStart(2, '0')).join('');
-    scriptHex += '88ac';
+    parts.push('76a914'); // OP_DUP OP_HASH160 PUSH(20)
+    parts.push(pubKeyHash.map(b => b.toString(16).padStart(2, '0')).join(''));
+    parts.push('88ac'); // OP_EQUALVERIFY OP_CHECKSIG
     
     // Ordinal inscription envelope
-    scriptHex += '0063'; // OP_0 OP_IF
-    scriptHex += '03'; // Push 3 bytes
-    scriptHex += '6f7264'; // "ord"
-    scriptHex += '51'; // OP_1
+    parts.push('0063'); // OP_0 OP_IF
+    parts.push('03'); // Push 3 bytes
+    parts.push('6f7264'); // "ord"
+    parts.push('01'); // OP_1
+    parts.push('01'); // Push 1 byte
+    parts.push('31'); // "1" (content type marker)
     
     // Content type
     const ctBytes = Utils.toArray(contentType, 'utf8');
-    const ctLength = ctBytes.length;
+    parts.push(createPushDataOpcode(ctBytes.length));
+    parts.push(ctBytes.map(b => b.toString(16).padStart(2, '0')).join(''));
     
-    if (ctLength <= 75) {
-      scriptHex += ctLength.toString(16).padStart(2, '0');
-    } else if (ctLength <= 255) {
-      scriptHex += '4c';
-      scriptHex += ctLength.toString(16).padStart(2, '0');
-    } else {
-      scriptHex += '4d';
-      scriptHex += (ctLength & 0xff).toString(16).padStart(2, '0');
-      scriptHex += ((ctLength >> 8) & 0xff).toString(16).padStart(2, '0');
-    }
-    scriptHex += ctBytes.map(b => b.toString(16).padStart(2, '0')).join('');
+    parts.push('00'); // OP_0 (content delimiter)
     
-    scriptHex += '00'; // OP_0
-    
-    // Data
+    // Data - handle as a single push with proper opcode
     const dataArray = Array.from(data);
-    const dataLength = dataArray.length;
+    console.log(`Encoding ${dataArray.length} bytes of inscription data`);
     
-    console.log(`Encoding ${dataLength} bytes of inscription data`);
+    // Add the push opcode for the entire data
+    parts.push(createPushDataOpcode(dataArray.length));
     
-    if (dataLength <= 75) {
-      scriptHex += dataLength.toString(16).padStart(2, '0');
-    } else if (dataLength <= 255) {
-      scriptHex += '4c';
-      scriptHex += dataLength.toString(16).padStart(2, '0');
-    } else if (dataLength <= 65535) {
-      scriptHex += '4d';
-      scriptHex += (dataLength & 0xff).toString(16).padStart(2, '0');
-      scriptHex += ((dataLength >> 8) & 0xff).toString(16).padStart(2, '0');
-    } else {
-      scriptHex += '4e';
-      scriptHex += (dataLength & 0xff).toString(16).padStart(2, '0');
-      scriptHex += ((dataLength >> 8) & 0xff).toString(16).padStart(2, '0');
-      scriptHex += ((dataLength >> 16) & 0xff).toString(16).padStart(2, '0');
-      scriptHex += ((dataLength >> 24) & 0xff).toString(16).padStart(2, '0');
-    }
+    // Add the actual data
+    const dataHex = dataArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    parts.push(dataHex);
     
-    // Process data in chunks to avoid memory issues
-    const chunkSize = 10000;
-    for (let i = 0; i < dataArray.length; i += chunkSize) {
-      const chunk = dataArray.slice(i, Math.min(i + chunkSize, dataArray.length));
-      scriptHex += chunk.map(b => b.toString(16).padStart(2, '0')).join('');
-    }
+    parts.push('68'); // OP_ENDIF
     
-    scriptHex += '68'; // OP_ENDIF
-    
-    const script = Script.fromHex(scriptHex);
+    // Combine all parts
+    const scriptHex = parts.join('');
     
     console.log(`Created inscription script: ${(scriptHex.length / 2 / 1024).toFixed(2)}KB`);
     
+    const script = Script.fromHex(scriptHex);
     return script;
     
   } catch (error) {
     console.error('Error creating inscription script:', error);
-    console.error('Script hex length so far:', scriptHex.length);
     throw new Error('Failed to create inscription script: ' + (error instanceof Error ? error.message : 'Unknown error'));
   }
 };
@@ -135,10 +135,11 @@ export const createInscription = async (
     whatsOnChainApiKey,
     blogKeyHistory,
     currentFeeRate,
-    lastTransactionTime
+    lastTransactionTime,
+    wallt4Data
   } = params;
 
-  // Validation checks   //  BCAT Manager Info
+  // Validation checks
   if (!keyData.privateKey) {
     return {
       success: false,
@@ -178,12 +179,32 @@ export const createInscription = async (
 
     if (encryptionLevel > 0 && encryptedData) {
       // Use the encrypted data
-      contentType = 'application/json';
+      contentType = 'application/wallt4+json';
       inscriptionData = Utils.toArray(encryptedData, 'utf8');
       console.log(`Creating encrypted inscription, size: ${inscriptionData.length} bytes, encryption level: ${encryptionLevel}`);
     } else {
-      // Non-encrypted path
-      if (inscriptionType === 'text') {
+      // Handle different inscription types
+      if (inscriptionType === 'wallt4' && wallt4Data) {
+        // New wallt4 type with consistent structure
+        contentType = 'application/wallt4+json';
+        
+        // Create a standardized data structure
+        const wallt4Object = {
+          protocol: 'wallt4',
+          version: '1.0',
+          data: {
+            title: wallt4Data.title,
+            content: wallt4Data.content,
+            type: wallt4Data.type,
+            image: wallt4Data.image || null,
+            timestamp: Date.now()
+          }
+        };
+        
+        inscriptionData = Utils.toArray(JSON.stringify(wallt4Object), 'utf8');
+        console.log(`Creating wallt4 inscription with standardized format, size: ${inscriptionData.length} bytes`);
+      }
+      else if (inscriptionType === 'text') {
         const text = textData || 'Hello, 1Sat Ordinals!';
         contentType = 'text/plain;charset=utf-8';
         inscriptionData = Utils.toArray(text, 'utf8');
@@ -226,6 +247,7 @@ export const createInscription = async (
     }
 
     console.log(`Creating ${inscriptionType} inscription, size: ${inscriptionData.length} bytes`);
+    console.log(`Content type: ${contentType}`);
 
     // Fetch current fee rate
     const feeRate = await fetchNetworkFeeRate(network);
@@ -247,7 +269,7 @@ export const createInscription = async (
       1, 2, inscriptionData.length, feeRate
     );
     
-    // Check transaction size - be more lenient
+    // Check transaction size
     if (estimatedSize > 4.99 * 1024 * 1024) {
       return {
         success: false,
@@ -358,7 +380,8 @@ export const createInscription = async (
     console.log(`- Fee: ${estimatedFee} sats`);
     console.log(`- Actual fee rate: ${actualFeeRate.toFixed(3)} sat/KB`);
     console.log(`- Target fee rate: ${feeRate} sat/KB`);
-    console.log(`- Encryption level: ${encryptionLevel}`);
+    console.log(`- Inscription type: ${inscriptionType}`);
+    console.log(`- Content type: ${contentType}`);
 
     // Broadcast
     const broadcastService = new BroadcastService(network);
@@ -374,7 +397,7 @@ export const createInscription = async (
       return {
         success: true,
         txid: result.txid,
-        message: `Ordinal created${encryptionInfo}! TXID: ${result.txid}`
+        message: `${inscriptionType === 'wallt4' ? 'Wallt4 post' : 'Ordinal'} created${encryptionInfo}! TXID: ${result.txid}`
       };
     } else {
       return {
@@ -408,6 +431,29 @@ export const createInscription = async (
     };
   }
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
