@@ -17,7 +17,7 @@ import { WalletInfo } from './WalletInfo';
 import { BlogEncryption, EncryptionLevel, getEncryptionLevelColor, getEncryptionLevelLabel } from  '../utils/BlogEncryption';
 import { createInscription } from '../utils/inscriptionCreator';
 
-// Update the InscriptionType type
+// Update the InscriptionType type  setStatus
 export type InscriptionType = 'text' | 'image' | 'profile' | 'profile2' | 'largeProfile' | 'largeProfile2' | 'encryptedProperty';
 
 interface CreateInscriptionProps {
@@ -55,7 +55,7 @@ export const CreateInscription: React.FC<CreateInscriptionProps> = ({ network })
 
   const { keyData, balance, whatsOnChainApiKey, blogKeyHistory, getKeySegmentForLevel } = useWalletStore();
 
-  // Fetch current fee rate from the network  Inscription Type
+  // Fetch current fee rate from the network  Inscription Type  setStatus
   const fetchCurrentFeeRate = async () => {
     try {
       const defaultRateSatPerKB = 1;
