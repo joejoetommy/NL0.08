@@ -7,8 +7,8 @@ import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
 import { Checkbox } from "../../components/ui/checkbox";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "../../components/ui/alert-dialog";
 import { UploadCloud } from "lucide-react";
-import { TimePicker } from "antd";
-import moment from 'moment';
+// import { TimePicker } from "antd";
+// import moment from 'moment';
 import { EncryptionLevel, getEncryptionLevelColor, getEncryptionLevelLabel } from '../../components/wallet2/inscriptions/utils/BlogEncryption';
 
 // Types   PropertySheet
@@ -221,10 +221,10 @@ export const PropertySheet1: React.FC<PropertySheetProps> = ({
   // const [freeWifi, setFreeWifi] = useState('Yes');
 
   // Check-in/out times
-  const [checkInFrom, setCheckInFrom] = useState('');
-  const [checkInUntil, setCheckInUntil] = useState('');
-  const [checkOutFrom, setCheckOutFrom] = useState('');
-  const [checkOutUntil, setCheckOutUntil] = useState('');
+  // const [checkInFrom, setCheckInFrom] = useState('');
+  // const [checkInUntil, setCheckInUntil] = useState('');
+  // const [checkOutFrom, setCheckOutFrom] = useState('');
+  // const [checkOutUntil, setCheckOutUntil] = useState('');
 
   // Rules
   const [rules, setRules] = useState({
@@ -315,28 +315,28 @@ export const PropertySheet1: React.FC<PropertySheetProps> = ({
       description,
       encryptionLevel,
       formData,
-      numberOfGuests,
-      numberOfBathrooms,
-      numberOfSingleBeds,
-      numberOfQueenBeds,
-      numberOfKingBeds,
-      numberOfKidBeds,
-      numberOfTufanBeds,
-      hotelRoomForOccupants,
-      hotelRoomBedType,
-      arrangementAndFacilities,
-      otherTypesOfHotelRooms,
-      hotelRoomFacilities,
-      gymOrFitness,
-      dedicatedWorkstation,
-      spaFacilities,
-      general,
-      freeWifi,
+      // numberOfGuests,
+      // numberOfBathrooms,
+      // numberOfSingleBeds,
+      // numberOfQueenBeds,
+      // numberOfKingBeds,
+      // numberOfKidBeds,
+      // numberOfTufanBeds,
+      // hotelRoomForOccupants,
+      // hotelRoomBedType,
+      // arrangementAndFacilities,
+      // otherTypesOfHotelRooms,
+      // hotelRoomFacilities,
+      // gymOrFitness,
+      // dedicatedWorkstation,
+      // spaFacilities,
+      // general,
+      // freeWifi,
       rules,
-      checkInFrom,
-      checkInUntil,
-      checkOutFrom,
-      checkOutUntil,
+      // checkInFrom,
+      // checkInUntil,
+      // checkOutFrom,
+      // checkOutUntil,
       selectedLanguages,
       roomPhotos,
       hotelPhotos,
@@ -353,7 +353,7 @@ export const PropertySheet1: React.FC<PropertySheetProps> = ({
     <Sheet open={showSheet} onOpenChange={setShowSheet}>
       <SheetTrigger asChild>
         <Button variant="outline" className="w-full">
-          🏠 Create Property Listing
+          Create Property Listing 5.1
         </Button>
       </SheetTrigger>
       <SheetContent className="h-screen max-h-screen overflow-y-auto w-[500px]">
@@ -571,7 +571,7 @@ export const PropertySheet1: React.FC<PropertySheetProps> = ({
           </div>
 
           {/* Check-in Times */}
-          <div className="grid gap-2">
+          {/* <div className="grid gap-2">
             <Label>Check-in Times</Label>
             <div className="flex space-x-2">
               <TimePicker 
@@ -587,10 +587,10 @@ export const PropertySheet1: React.FC<PropertySheetProps> = ({
                 placeholder="Until"
               />
             </div>
-          </div>
+          </div> */}
 
           {/* Check-out Times */}
-          <div className="grid gap-2">
+          {/* <div className="grid gap-2">
             <Label>Check-out Times</Label>
             <div className="flex space-x-2">
               <TimePicker 
@@ -606,7 +606,7 @@ export const PropertySheet1: React.FC<PropertySheetProps> = ({
                 placeholder="Until"
               />
             </div>
-          </div>
+          </div> */}
 
           {/* Image Uploads */}
           <div className="grid gap-2">
@@ -627,7 +627,7 @@ export const PropertySheet1: React.FC<PropertySheetProps> = ({
               </div>
             )}
           </div>
-
+{/* 
           <div className="grid gap-2">
             <Label>Hotel Photos</Label>
             <div className="border-dashed border-2 border-gray-300 p-2 rounded-md text-center cursor-pointer h-24" onClick={() => document.getElementById('hotelPhotos')?.click()}>
@@ -664,7 +664,7 @@ export const PropertySheet1: React.FC<PropertySheetProps> = ({
                 ))}
               </div>
             )}
-          </div>
+          </div> */}
 
           {/* Cancellation Policy */}
           <div className="grid gap-2">

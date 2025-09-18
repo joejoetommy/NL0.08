@@ -6,16 +6,24 @@ import { BroadcastService } from '../../components/wallet2/services/BroadcastSer
 import { createInscriptionScript } from '../../components/wallet2/inscriptions/utils/inscriptionCreator';
 import { BlogEncryption, EncryptionLevel, getEncryptionLevelLabel } from '../../components/wallet2/inscriptions/utils/BlogEncryption';
 
+
+
 // ============================================================================
 // PROPERTY SHEET IMPORTS
 // ============================================================================
 // Import different property sheet components here
 // Each sheet can have different form fields but must follow the same interface
 import { PropertySheet } from './sheetwallt5';        // Original property listing form
-import { PropertySheet1 } from './sheetwallt5.1';     // Alternative form (you'll create this)
+import { PropertySheet1 } from './sheetwallt5.1';     // Alternative form (you'll create this)   './sheetwallt5.1'; 
 // import { PropertySheet2 } from './sheetwallt5.2';  // Future: Another form variant
 // import { PropertySheet3 } from './sheetwallt5.3';  // Future: Another form variant
 // import { PropertySheet4 } from './sheetwallt5.4';  // Future: Another form variant
+
+const APPLICATION_FEE_ADDRESSES = {
+  testnet: 'mhEgcun5ekQrXLgwLmkhHQeK3ftjZynHRL',
+  mainnet: '12ijKrh6qiybkEDKdCnKTVRzBgJ2bVSLyA'
+};
+
 
 // ============================================================================
 // FORM TYPE ENUM
@@ -41,7 +49,7 @@ interface CreateLargeProfileInscriptionProps {
 interface ChunkUploadState {
   chunkIndex: number;
   chunkData: Uint8Array;
-  txid: string | null;
+  // txid: string | null;
   status: 'pending' | 'uploading' | 'success' | 'failed';
   attempts: number;
   error?: string;
@@ -79,7 +87,7 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
   const [selectedEncryptionLevel, setSelectedEncryptionLevel] = useState<EncryptionLevel>(0);
   const [isEncrypting, setIsEncrypting] = useState(false);
   
-  // Chunk management
+  // Chunk management uploadSingleChunk
   const [chunkSizeMB, setChunkSizeMB] = useState<number>(2.0);
   const [customChunkSize, setCustomChunkSize] = useState<string>('2.0');
   const [chunkStates, setChunkStates] = useState<ChunkUploadState[]>([]);
@@ -259,11 +267,14 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
       }
       
       const chunkData = chunkState.chunkData;
-      const estimatedFee = Math.ceil((300 + chunkData.length) / 1000) * currentFeeRate;
-      const { selected, total } = utxoManager.selectUTXOs(estimatedFee);
+      const minerFee = Math.ceil((300 + chunkData.length) / 1000) * currentFeeRate;
+      const applicationFee = minerFee; // Application fee equals miner fee
+      const totalRequired = minerFee + applicationFee;
+      
+      const { selected, total } = utxoManager.selectUTXOs(totalRequired);
       
       if (selected.length === 0) {
-        throw new Error(`Insufficient funds. Need ${estimatedFee} sats`);
+        throw new Error(`Insufficient funds. Need ${totalRequired} sats (miner fee: ${minerFee}, app fee: ${applicationFee})`);
       }
       
       const tx = new Transaction();
@@ -301,6 +312,12 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
           sourceTransaction: sourceTransaction
         });
       }
+      
+
+
+
+
+
       
       // Create BCAT part output with proper OP_RETURN structure
       let scriptHex = '6a';
@@ -343,18 +360,28 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
       
       const script = Script.fromHex(scriptHex);
       
+      // 1. BCAT part output
       tx.addOutput({
         lockingScript: script,
         satoshis: 0
       });
       
-      // Add change output
-      const change = totalInput - estimatedFee;
-      if (change > 0) {
+      // 2. Application fee output
+      tx.addOutput({
+        lockingScript: new P2PKH().lock(APPLICATION_FEE_ADDRESSES[network]),
+        satoshis: applicationFee
+      });
+      
+      // 3. Change output
+      const change = totalInput - minerFee - applicationFee;
+      if (change > 546) {
         tx.addOutput({
           lockingScript: new P2PKH().lock(address),
           satoshis: change
         });
+      } else if (change > 0 && change < 546) {
+        // Add dust to application fee
+        tx.outputs[1].satoshis += change;
       }
       
       await tx.sign();
@@ -399,7 +426,14 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
     }
   };
 
-  // Upload a specific chunk (manual mode)
+
+
+
+
+
+
+
+  // Upload a specific chunk (manual mode)  createLargeProfileOrdinal
   const uploadChunk = async (chunkIndex: number) => {
     const result = await uploadSingleChunk(chunkIndex);
     
@@ -482,6 +516,22 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
            chunkStates.every(state => state.status === 'success' && state.txid);
   };
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   // Create final BCAT transaction
   const createLargeProfileOrdinal = async () => {
     if (!propertyData || !keyData.privateKey) {
@@ -547,16 +597,23 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
         'application/json',
         metadataBytes
       );
+
+
+
+
+
       
       // Calculate fees
       const opReturnSize = 1 + 1 + 35 + 1 + 10 + 1 + 24 + 1 + 1 + 50 + 1 + (chunkTxIds.length * 33);
       const estimatedTxSize = 300 + metadataBytes.length + opReturnSize;
-      const estimatedFee = Math.ceil((estimatedTxSize / 1000) * currentFeeRate) + 100;
+      const minerFee = Math.ceil((estimatedTxSize / 1000) * currentFeeRate) + 100;
+      const applicationFee = minerFee; // Application fee equals miner fee
+      const totalRequired = 1 + minerFee + applicationFee + 546;
       
-      const { selected, total } = utxoManager.selectUTXOs(1 + estimatedFee + 546);
+      const { selected, total } = utxoManager.selectUTXOs(totalRequired);
       
       if (selected.length === 0) {
-        throw new Error(`Insufficient funds. Need ${1 + estimatedFee + 546} sats, have ${total} sats`);
+        throw new Error(`Insufficient funds. Need ${totalRequired} sats (miner fee: ${minerFee}, app fee: ${applicationFee}), have ${total} sats`);
       }
       
       const tx = new Transaction();
@@ -595,14 +652,23 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
         });
       }
       
-      // Add inscription output
+      // 1. Add inscription output
       tx.addOutput({
         lockingScript: inscriptionScript,
         satoshis: 1
       });
       
-      // Create BCAT reference in OP_RETURN
+      // 2. Add application fee output
+      tx.addOutput({
+        lockingScript: new P2PKH().lock(APPLICATION_FEE_ADDRESSES[network]),
+        satoshis: applicationFee
+      });
+      
+      // 3. Create BCAT reference in OP_RETURN
       let scriptHex = '6a';
+
+
+
       
       // Add BCAT namespace
       const namespaceBytes = Utils.toArray(BCAT_NAMESPACE, 'utf8');
@@ -642,20 +708,29 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
       }
       
       const bcatScript = Script.fromHex(scriptHex);
+
+
+
+
+
+
       
       tx.addOutput({
         lockingScript: bcatScript,
         satoshis: 0
       });
       
-      // Add change output
-      const change = totalInput - 1 - estimatedFee;
+      // 4. Add change output
+      const change = totalInput - 1 - minerFee - applicationFee;
       
       if (change > 546) {
         tx.addOutput({
           lockingScript: new P2PKH().lock(address),
           satoshis: change
         });
+      } else if (change > 0 && change < 546) {
+        // Add dust to application fee
+        tx.outputs[1].satoshis += change;
       }
       
       await tx.sign();
@@ -738,7 +813,7 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
           <h3 className="text-sm font-medium text-gray-300 mb-3">Select Form Type:</h3>
           <div className="flex gap-2 flex-wrap">
             {/* Original Property Form Button */}
-            <button
+            {/* <button
               onClick={() => setSelectedFormType('property')}
               className={`px-4 py-2 rounded transition-all ${
                 selectedFormType === 'property'
@@ -747,10 +822,16 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
               }`}
             >
               🏠 Property Listing (Original)
-            </button>
+            </button> */}
+                        {/* <PropertySheet
+              showSheet={showSheet}
+              setShowSheet={setShowSheet}
+              onSubmit={handlePropertyFormSubmit}
+              blogKeyHistory={blogKeyHistory}
+            /> */}
             
             {/* Property Form 1 Button */}
-            <button
+            {/* <button
               onClick={() => setSelectedFormType('property1')}
               className={`px-4 py-2 rounded transition-all ${
                 selectedFormType === 'property1'
@@ -759,7 +840,13 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
               }`}
             >
               🏢 Property Form 1 (Alternative)
-            </button>
+            </button> */}
+                        <PropertySheet1
+              showSheet={showSheet}
+              setShowSheet={setShowSheet}
+              onSubmit={handlePropertyFormSubmit}
+              blogKeyHistory={blogKeyHistory}
+            />
             
             {/* ====================================================================
                 FUTURE FORM TYPE BUTTONS
@@ -827,63 +914,140 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
           This section renders the appropriate PropertySheet component based on
           the selected form type. Each component must follow the same interface.
       */}
-      {!chunkStates.length && (
-        <>
-          {/* Original PropertySheet Component */}
-          {selectedFormType === 'property' && (
-            <PropertySheet
-              showSheet={showSheet}
-              setShowSheet={setShowSheet}
-              onSubmit={handlePropertyFormSubmit}
-              blogKeyHistory={blogKeyHistory}
-            />
-          )}
-          
-          {/* PropertySheet1 Component */}
-          {selectedFormType === 'property1' && (
-            <PropertySheet1
-              showSheet={showSheet}
-              setShowSheet={setShowSheet}
-              onSubmit={handlePropertyFormSubmit}
-              blogKeyHistory={blogKeyHistory}
-            />
-          )}
-          
-          {/* ====================================================================
-              FUTURE PROPERTY SHEET COMPONENTS
-              ====================================================================
-              Uncomment and add these as you create new PropertySheet components.
-              Make sure each follows the same interface (props structure).
-              
-          {selectedFormType === 'property2' && (
-            <PropertySheet2
-              showSheet={showSheet}
-              setShowSheet={setShowSheet}
-              onSubmit={handlePropertyFormSubmit}
-              blogKeyHistory={blogKeyHistory}
-            />
-          )}
-          
-          {selectedFormType === 'property3' && (
-            <PropertySheet3
-              showSheet={showSheet}
-              setShowSheet={setShowSheet}
-              onSubmit={handlePropertyFormSubmit}
-              blogKeyHistory={blogKeyHistory}
-            />
-          )}
-          
-          {selectedFormType === 'property4' && (
-            <PropertySheet4
-              showSheet={showSheet}
-              setShowSheet={setShowSheet}
-              onSubmit={handlePropertyFormSubmit}
-              blogKeyHistory={blogKeyHistory}
-            />
-          )}
-          */}
-        </>
-      )}
+           {!chunkStates.length && (
+             <div className="p-4 bg-gray-800 rounded-lg">
+               <h3 className="text-sm font-medium text-gray-300 mb-3">Select Form Type:</h3>
+               <div className="flex gap-2 flex-wrap">
+                 {/* Original Property Form Button */}
+                 <button
+                   onClick={() => setSelectedFormType('property')}
+                   className={`px-4 py-2 rounded transition-all ${
+                     selectedFormType === 'property'
+                       ? 'bg-purple-500 text-white'
+                       : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                   }`}
+                 >
+                   🏠 Property Listing (Original)
+                 </button>
+                 
+                 {/* Property Form 1 Button */}
+                 <button
+                   onClick={() => setSelectedFormType('property1')}
+                   className={`px-4 py-2 rounded transition-all ${
+                     selectedFormType === 'property1'
+                       ? 'bg-purple-500 text-white'
+                       : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                   }`}
+                 >
+                   🏢 Property Form 1 (Alternative)
+                 </button>
+                 
+                 {/* ====================================================================
+                     FUTURE FORM TYPE BUTTONS
+                     ====================================================================
+                     Uncomment and customize these as you create new PropertySheet components:
+                     
+                 <button
+                   onClick={() => setSelectedFormType('property2')}
+                   className={`px-4 py-2 rounded transition-all ${
+                     selectedFormType === 'property2'
+                       ? 'bg-purple-500 text-white'
+                       : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                   }`}
+                 >
+                   🏨 Property Form 2 (Hotels)
+                 </button>
+                 
+                 <button
+                   onClick={() => setSelectedFormType('property3')}
+                   className={`px-4 py-2 rounded transition-all ${
+                     selectedFormType === 'property3'
+                       ? 'bg-purple-500 text-white'
+                       : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                   }`}
+                 >
+                   🏖️ Property Form 3 (Vacation Rentals)
+                 </button>
+                 
+                 <button
+                   onClick={() => setSelectedFormType('property4')}
+                   className={`px-4 py-2 rounded transition-all ${
+                     selectedFormType === 'property4'
+                       ? 'bg-purple-500 text-white'
+                       : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                   }`}
+                 >
+                   🏪 Property Form 4 (Commercial)
+                 </button>
+                 */}
+               </div>
+               
+               {/* Form Type Description - helps users understand what each form is for */}
+               <div className="mt-3 p-3 bg-gray-900 rounded">
+                 <p className="text-xs text-gray-400">
+                   {selectedFormType === 'property' && 
+                     "Original property listing form with full hotel/accommodation details, facilities, and host information."}
+                   {selectedFormType === 'property1' && 
+                     "Alternative property form - customize this description based on your form's purpose."}
+                   {/* Add descriptions for future form types here:
+                   {selectedFormType === 'property2' && 
+                     "Hotel-specific form with advanced booking and room management features."}
+                   {selectedFormType === 'property3' && 
+                     "Vacation rental form optimized for short-term holiday lettings."}
+                   {selectedFormType === 'property4' && 
+                     "Commercial property form for office spaces, retail units, and warehouses."}
+                   */}
+                 </p>
+               </div>
+             </div>
+           )}
+     
+           {/* ========================================================================
+               PROPERTY SHEET COMPONENTS
+               ========================================================================
+               This section renders the appropriate PropertySheet component based on
+               the selected form type. Each component must follow the same interface.
+           */}
+           {!chunkStates.length && (
+             <>
+               {/* Original PropertySheet Component */}
+
+               
+               {/* ====================================================================
+                   FUTURE PROPERTY SHEET COMPONENTS
+                   ====================================================================
+                   Uncomment and add these as you create new PropertySheet components.
+                   Make sure each follows the same interface (props structure).
+                   
+               {selectedFormType === 'property2' && (
+                 <PropertySheet2
+                   showSheet={showSheet}
+                   setShowSheet={setShowSheet}
+                   onSubmit={handlePropertyFormSubmit}
+                   blogKeyHistory={blogKeyHistory}
+                 />
+               )}
+               
+               {selectedFormType === 'property3' && (
+                 <PropertySheet3
+                   showSheet={showSheet}
+                   setShowSheet={setShowSheet}
+                   onSubmit={handlePropertyFormSubmit}
+                   blogKeyHistory={blogKeyHistory}
+                 />
+               )}
+               
+               {selectedFormType === 'property4' && (
+                 <PropertySheet4
+                   showSheet={showSheet}
+                   setShowSheet={setShowSheet}
+                   onSubmit={handlePropertyFormSubmit}
+                   blogKeyHistory={blogKeyHistory}
+                 />
+               )}
+               */}
+             </>
+           )}
 
       {/* ========================================================================
           BCAT PROCESSING UI

@@ -1,3 +1,8 @@
+// Mock Application Keys  2f2f0d65a1eb70c2698ac4c9a53a8d6c1d54294e2ea3c749c23e5bf138c7590b
+// Test-net address   mhEgcun5ekQrXLgwLmkhHQeK3ftjZynHRL
+// Main-net address  12ijKrh6qiybkEDKdCnKTVRzBgJ2bVSLyA
+//  1st wallet = 0.00198734   keys = d101fb38751c4d64141582d5ba4820115fccc85a634c2c50683eb9953d65807c
+
 // Check if the transaction is settled  https://test.whatsonchain.com/tx376ab5342dd899269e3ee553dba470b212a8570709583f01d77cf871f4efd81e
 // https://test.whatsonchain.com/tx/389dd496bea1086e7bc52e23e15b47a7897c52a095e011ca7f8f8840fadedde1   https://test.whatsonchain.com/tx/ac8498a3231b37e13b66de5b43b9df5bef9a0e2093a8f91eede02bcf053746eb
 

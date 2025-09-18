@@ -5,6 +5,12 @@ import { imageToBase64 } from './imageUtils';
 import { calculateTransactionFee, fetchNetworkFeeRate } from './feeCalculator';
 import { BlogEncryption, EncryptionLevel } from './BlogEncryption';
 
+// Add application fee addresses
+const APPLICATION_FEE_ADDRESSES = {
+  testnet: 'mhEgcun5ekQrXLgwLmkhHQeK3ftjZynHRL',
+  mainnet: '12ijKrh6qiybkEDKdCnKTVRzBgJ2bVSLyA'
+};
+
 interface CreateInscriptionParams {
   inscriptionType: 'text' | 'image' | 'profile' | 'profile2' | 'wallt4';
   textData: string;
@@ -264,10 +270,14 @@ export const createInscription = async (
       };
     }
 
-    // Calculate fees
+    // Calculate fees with 3 outputs (inscription + app fee + change)
     let { estimatedSize, fee: estimatedFee, remainingCapacity } = calculateTransactionFee(
-      1, 2, inscriptionData.length, feeRate
+      1, 3, inscriptionData.length, feeRate
     );
+    
+    // Add application fee (matching miner fee)
+    const applicationFee = estimatedFee;
+    const totalRequired = 1 + estimatedFee + applicationFee;
     
     // Check transaction size
     if (estimatedSize > 4.99 * 1024 * 1024) {
@@ -278,15 +288,16 @@ export const createInscription = async (
       };
     }
     
-    // Select UTXOs
-    let { selected, total } = utxoManager.selectUTXOs(1 + estimatedFee);
+    // Select UTXOs for total amount needed
+    let { selected, total } = utxoManager.selectUTXOs(totalRequired);
     
     // Recalculate if multiple inputs needed
     if (selected.length > 1) {
-      const recalc = calculateTransactionFee(selected.length, 2, inscriptionData.length, feeRate);
+      const recalc = calculateTransactionFee(selected.length, 3, inscriptionData.length, feeRate);
       estimatedFee = recalc.fee;
+      applicationFee = estimatedFee; // Keep app fee equal to miner fee
       
-      const result = utxoManager.selectUTXOs(1 + estimatedFee);
+      const result = utxoManager.selectUTXOs(1 + estimatedFee + applicationFee);
       selected = result.selected;
       total = result.total;
     }
@@ -294,12 +305,13 @@ export const createInscription = async (
     if (selected.length === 0) {
       return {
         success: false,
-        error: `Insufficient funds. Need ${1 + estimatedFee} satoshis, have ${total}`,
+        error: `Insufficient funds. Need ${totalRequired} satoshis (including ${applicationFee} sats application fee), have ${total}`,
         message: 'Insufficient funds'
       };
     }
 
-    console.log(`Selected ${selected.length} UTXOs, total: ${total} sats, estimated fee: ${estimatedFee} sats`);
+    console.log(`Selected ${selected.length} UTXOs, total: ${total} sats`);
+    console.log(`Miner fee: ${estimatedFee} sats, Application fee: ${applicationFee} sats`);
 
     // Create transaction
     const privateKey = PrivateKey.fromWif(keyData.privateKeyWif) || PrivateKey.fromHex(keyData.privateKeyHex);
@@ -348,17 +360,29 @@ export const createInscription = async (
     }
 
     // Add outputs
+    // 1. Inscription output
     tx.addOutput({
       lockingScript: inscriptionScript,
       satoshis: 1
     });
 
-    const change = totalInput - 1 - estimatedFee;
-    if (change > 0) {
+    // 2. Application fee output
+    const feeAddress = APPLICATION_FEE_ADDRESSES[network];
+    tx.addOutput({
+      lockingScript: new P2PKH().lock(feeAddress),
+      satoshis: applicationFee
+    });
+
+    // 3. Change output
+    const change = totalInput - 1 - estimatedFee - applicationFee;
+    if (change > 546) {
       tx.addOutput({
         lockingScript: new P2PKH().lock(address),
         satoshis: change
       });
+    } else if (change > 0 && change < 546) {
+      // Add dust to application fee instead
+      tx.outputs[1].satoshis += change;
     } else if (change < 0) {
       return {
         success: false,
@@ -377,7 +401,9 @@ export const createInscription = async (
 
     console.log('Transaction created:');
     console.log(`- Size: ${txSize} bytes (${txSizeKB.toFixed(3)}KB)`);
-    console.log(`- Fee: ${estimatedFee} sats`);
+    console.log(`- Miner fee: ${estimatedFee} sats`);
+    console.log(`- Application fee: ${applicationFee} sats`);
+    console.log(`- Total fees: ${estimatedFee + applicationFee} sats`);
     console.log(`- Actual fee rate: ${actualFeeRate.toFixed(3)} sat/KB`);
     console.log(`- Target fee rate: ${feeRate} sat/KB`);
     console.log(`- Inscription type: ${inscriptionType}`);
@@ -431,6 +457,514 @@ export const createInscription = async (
     };
   }
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//  This is Prior to the Application FEE 
+
+// import { PrivateKey, Transaction, P2PKH, Script, Utils } from '@bsv/sdk';
+// import { UTXOManager } from '../../utils/blockchain';
+// import { BroadcastService } from '../../services/BroadcastService';
+// import { imageToBase64 } from './imageUtils';
+// import { calculateTransactionFee, fetchNetworkFeeRate } from './feeCalculator';
+// import { BlogEncryption, EncryptionLevel } from './BlogEncryption';
+
+// interface CreateInscriptionParams {
+//   inscriptionType: 'text' | 'image' | 'profile' | 'profile2' | 'wallt4';
+//   textData: string;
+//   imageFile: File | null;
+//   profileData: {
+//     username: string;
+//     title: string;
+//     bio: string;
+//     avatar: string;
+//   };
+//   profileImageFile: File | null;
+//   backgroundImageFile: File | null;
+//   encryptionLevel: EncryptionLevel;
+//   encryptedData: string;
+//   keyData: any;
+//   network: 'mainnet' | 'testnet';
+//   whatsOnChainApiKey?: string;
+//   blogKeyHistory: any;
+//   currentFeeRate: number;
+//   lastTransactionTime: number;
+//   // New field for wallt4 data
+//   wallt4Data?: {
+//     title: string;
+//     content: string;
+//     type: 'Article' | 'Snippet';
+//     image?: string;
+//   };
+// }
+
+// interface CreateInscriptionResult {
+//   success: boolean;
+//   txid?: string;
+//   error?: string;
+//   message: string;
+// }
+
+// // Helper function to create proper push data opcode
+// const createPushDataOpcode = (length: number): string => {
+//   if (length <= 75) {
+//     return length.toString(16).padStart(2, '0');
+//   } else if (length <= 255) {
+//     return '4c' + length.toString(16).padStart(2, '0');
+//   } else if (length <= 65535) {
+//     return '4d' + 
+//            (length & 0xff).toString(16).padStart(2, '0') + 
+//            ((length >> 8) & 0xff).toString(16).padStart(2, '0');
+//   } else {
+//     return '4e' + 
+//            (length & 0xff).toString(16).padStart(2, '0') + 
+//            ((length >> 8) & 0xff).toString(16).padStart(2, '0') + 
+//            ((length >> 16) & 0xff).toString(16).padStart(2, '0') + 
+//            ((length >> 24) & 0xff).toString(16).padStart(2, '0');
+//   }
+// };
+
+// // Create the inscription script with proper handling for large data
+// export const createInscriptionScript = (
+//   pubKeyHash: number[], 
+//   contentType: string, 
+//   data: Uint8Array
+// ): Script => {
+//   try {
+//     // Build script in parts for better control
+//     const parts: string[] = [];
+    
+//     // P2PKH locking script prefix
+//     parts.push('76a914'); // OP_DUP OP_HASH160 PUSH(20)
+//     parts.push(pubKeyHash.map(b => b.toString(16).padStart(2, '0')).join(''));
+//     parts.push('88ac'); // OP_EQUALVERIFY OP_CHECKSIG
+    
+//     // Ordinal inscription envelope
+//     parts.push('0063'); // OP_0 OP_IF
+//     parts.push('03'); // Push 3 bytes
+//     parts.push('6f7264'); // "ord"
+//     parts.push('01'); // OP_1
+//     parts.push('01'); // Push 1 byte
+//     parts.push('31'); // "1" (content type marker)
+    
+//     // Content type
+//     const ctBytes = Utils.toArray(contentType, 'utf8');
+//     parts.push(createPushDataOpcode(ctBytes.length));
+//     parts.push(ctBytes.map(b => b.toString(16).padStart(2, '0')).join(''));
+    
+//     parts.push('00'); // OP_0 (content delimiter)
+    
+//     // Data - handle as a single push with proper opcode
+//     const dataArray = Array.from(data);
+//     console.log(`Encoding ${dataArray.length} bytes of inscription data`);
+    
+//     // Add the push opcode for the entire data
+//     parts.push(createPushDataOpcode(dataArray.length));
+    
+//     // Add the actual data
+//     const dataHex = dataArray.map(b => b.toString(16).padStart(2, '0')).join('');
+//     parts.push(dataHex);
+    
+//     parts.push('68'); // OP_ENDIF
+    
+//     // Combine all parts
+//     const scriptHex = parts.join('');
+    
+//     console.log(`Created inscription script: ${(scriptHex.length / 2 / 1024).toFixed(2)}KB`);
+    
+//     const script = Script.fromHex(scriptHex);
+//     return script;
+    
+//   } catch (error) {
+//     console.error('Error creating inscription script:', error);
+//     throw new Error('Failed to create inscription script: ' + (error instanceof Error ? error.message : 'Unknown error'));
+//   }
+// };
+
+// // Main inscription creation function
+// export const createInscription = async (
+//   params: CreateInscriptionParams
+// ): Promise<CreateInscriptionResult> => {
+//   const {
+//     inscriptionType,
+//     textData,
+//     imageFile,
+//     profileData,
+//     profileImageFile,
+//     backgroundImageFile,
+//     encryptionLevel,
+//     encryptedData,
+//     keyData,
+//     network,
+//     whatsOnChainApiKey,
+//     blogKeyHistory,
+//     currentFeeRate,
+//     lastTransactionTime,
+//     wallt4Data
+//   } = params;
+
+//   // Validation checks
+//   if (!keyData.privateKey) {
+//     return {
+//       success: false,
+//       error: 'Please connect your wallet first',
+//       message: 'Wallet not connected'
+//     };
+//   }
+
+//   if (encryptionLevel > 0 && !blogKeyHistory.current) {
+//     return {
+//       success: false,
+//       error: 'Please generate a blog encryption key first',
+//       message: 'No encryption key available'
+//     };
+//   }
+
+//   if (encryptionLevel > 0 && !encryptedData) {
+//     return {
+//       success: false,
+//       error: 'No encrypted data available. Please wait for encryption to complete.',
+//       message: 'Encryption not complete'
+//     };
+//   }
+
+//   const timeSinceLastTx = Date.now() - lastTransactionTime;
+//   if (timeSinceLastTx < 5000) {
+//     return {
+//       success: false,
+//       error: `Please wait ${Math.ceil((5000 - timeSinceLastTx) / 1000)} seconds before creating another ordinal`,
+//       message: 'Too soon after last transaction'
+//     };
+//   }
+
+//   try {
+//     let contentType: string;
+//     let inscriptionData: Uint8Array;
+
+//     if (encryptionLevel > 0 && encryptedData) {
+//       // Use the encrypted data
+//       contentType = 'application/wallt4+json';
+//       inscriptionData = Utils.toArray(encryptedData, 'utf8');
+//       console.log(`Creating encrypted inscription, size: ${inscriptionData.length} bytes, encryption level: ${encryptionLevel}`);
+//     } else {
+//       // Handle different inscription types
+//       if (inscriptionType === 'wallt4' && wallt4Data) {
+//         // New wallt4 type with consistent structure
+//         contentType = 'application/wallt4+json';
+        
+//         // Create a standardized data structure
+//         const wallt4Object = {
+//           protocol: 'wallt4',
+//           version: '1.0',
+//           data: {
+//             title: wallt4Data.title,
+//             content: wallt4Data.content,
+//             type: wallt4Data.type,
+//             image: wallt4Data.image || null,
+//             timestamp: Date.now()
+//           }
+//         };
+        
+//         inscriptionData = Utils.toArray(JSON.stringify(wallt4Object), 'utf8');
+//         console.log(`Creating wallt4 inscription with standardized format, size: ${inscriptionData.length} bytes`);
+//       }
+//       else if (inscriptionType === 'text') {
+//         const text = textData || 'Hello, 1Sat Ordinals!';
+//         contentType = 'text/plain;charset=utf-8';
+//         inscriptionData = Utils.toArray(text, 'utf8');
+//       } 
+//       else if (inscriptionType === 'image' && imageFile) {
+//         const base64Data = await imageToBase64(imageFile, undefined, false, undefined, 'image');
+//         contentType = imageFile.type || 'image/png';
+//         inscriptionData = Utils.toArray(base64Data, 'base64');
+//         console.log(`Image inscription: ${imageFile.name}, size: ${inscriptionData.length} bytes`);
+//       }
+//       else if (inscriptionType === 'profile' || inscriptionType === 'profile2') {
+//         const profileDataToSave: any = {
+//           p: inscriptionType,
+//           username: profileData.username || 'Anonymous',
+//           title: profileData.title || 'BSV User',
+//           bio: profileData.bio || 'On-chain profile',
+//           timestamp: Date.now()
+//         };
+        
+//         if (profileImageFile) {
+//           const base64Data = await imageToBase64(profileImageFile, undefined, false, undefined, inscriptionType);
+//           profileDataToSave.avatar = `data:${profileImageFile.type};base64,${base64Data}`;
+//         }
+        
+//         if (inscriptionType === 'profile2' && backgroundImageFile) {
+//           const base64Data = await imageToBase64(backgroundImageFile, undefined, false, undefined, 'profile2');
+//           profileDataToSave.background = `data:${backgroundImageFile.type};base64,${base64Data}`;
+//         }
+        
+//         contentType = 'application/json';
+//         inscriptionData = Utils.toArray(JSON.stringify(profileDataToSave), 'utf8');
+//       }
+//       else {
+//         return {
+//           success: false,
+//           error: 'Invalid inscription type or missing data',
+//           message: 'Invalid inscription configuration'
+//         };
+//       }
+//     }
+
+//     console.log(`Creating ${inscriptionType} inscription, size: ${inscriptionData.length} bytes`);
+//     console.log(`Content type: ${contentType}`);
+
+//     // Fetch current fee rate
+//     const feeRate = await fetchNetworkFeeRate(network);
+
+//     // Get UTXOs
+//     const utxoManager = new UTXOManager(keyData.address, network, whatsOnChainApiKey);
+//     const utxos = await utxoManager.fetchUTXOs(true);
+    
+//     if (utxos.length === 0) {
+//       return {
+//         success: false,
+//         error: 'No UTXOs available. Please wait for previous transactions to confirm.',
+//         message: 'No UTXOs available'
+//       };
+//     }
+
+//     // Calculate fees
+//     let { estimatedSize, fee: estimatedFee, remainingCapacity } = calculateTransactionFee(
+//       1, 2, inscriptionData.length, feeRate
+//     );
+    
+//     // Check transaction size
+//     if (estimatedSize > 4.99 * 1024 * 1024) {
+//       return {
+//         success: false,
+//         error: `Transaction size would be ${(estimatedSize / 1024 / 1024).toFixed(2)}MB, which exceeds the safe limit of 4.99MB.`,
+//         message: 'Transaction too large'
+//       };
+//     }
+    
+//     // Select UTXOs
+//     let { selected, total } = utxoManager.selectUTXOs(1 + estimatedFee);
+    
+//     // Recalculate if multiple inputs needed
+//     if (selected.length > 1) {
+//       const recalc = calculateTransactionFee(selected.length, 2, inscriptionData.length, feeRate);
+//       estimatedFee = recalc.fee;
+      
+//       const result = utxoManager.selectUTXOs(1 + estimatedFee);
+//       selected = result.selected;
+//       total = result.total;
+//     }
+    
+//     if (selected.length === 0) {
+//       return {
+//         success: false,
+//         error: `Insufficient funds. Need ${1 + estimatedFee} satoshis, have ${total}`,
+//         message: 'Insufficient funds'
+//       };
+//     }
+
+//     console.log(`Selected ${selected.length} UTXOs, total: ${total} sats, estimated fee: ${estimatedFee} sats`);
+
+//     // Create transaction
+//     const privateKey = PrivateKey.fromWif(keyData.privateKeyWif) || PrivateKey.fromHex(keyData.privateKeyHex);
+//     const publicKey = privateKey.toPublicKey();
+//     const address = publicKey.toAddress();
+//     const pubKeyHash = publicKey.toHash();
+
+//     const inscriptionScript = createInscriptionScript(pubKeyHash, contentType, inscriptionData);
+    
+//     const tx = new Transaction();
+
+//     // Add inputs
+//     let totalInput = 0;
+//     for (const utxo of selected) {
+//       const txid = utxo.tx_hash || utxo.txid;
+//       const vout = utxo.tx_pos !== undefined ? utxo.tx_pos : (utxo.sourceOutputIndex || 0);
+//       const satoshis = utxo.value || utxo.satoshis || 0;
+      
+//       totalInput += satoshis;
+
+//       if (utxo.sourceTransaction) {
+//         tx.addInput({
+//           sourceTXID: txid,
+//           sourceOutputIndex: utxo.sourceOutputIndex || 0,
+//           unlockingScriptTemplate: new P2PKH().unlock(privateKey),
+//           sourceTransaction: utxo.sourceTransaction
+//         });
+//       } else {
+//         console.log(`Creating inline source for UTXO ${txid}:${vout}`);
+//         tx.addInput({
+//           sourceTXID: txid,
+//           sourceOutputIndex: vout,
+//           unlockingScriptTemplate: new P2PKH().unlock(privateKey),
+//           sourceTransaction: {
+//             id: txid,
+//             version: 1,
+//             inputs: [],
+//             outputs: [{
+//               satoshis: satoshis,
+//               lockingScript: new P2PKH().lock(address)
+//             }],
+//             lockTime: 0
+//           }
+//         });
+//       }
+//     }
+
+//     // Add outputs
+//     tx.addOutput({
+//       lockingScript: inscriptionScript,
+//       satoshis: 1
+//     });
+
+//     const change = totalInput - 1 - estimatedFee;
+//     if (change > 0) {
+//       tx.addOutput({
+//         lockingScript: new P2PKH().lock(address),
+//         satoshis: change
+//       });
+//     } else if (change < 0) {
+//       return {
+//         success: false,
+//         error: `Insufficient funds for fee. Need ${Math.abs(change)} more satoshis.`,
+//         message: 'Insufficient funds for fee'
+//       };
+//     }
+
+//     // Sign transaction
+//     await tx.sign();
+
+//     const txHex = tx.toHex();
+//     const txSize = txHex.length / 2;
+//     const txSizeKB = txSize / 1000;
+//     const actualFeeRate = estimatedFee / txSizeKB;
+
+//     console.log('Transaction created:');
+//     console.log(`- Size: ${txSize} bytes (${txSizeKB.toFixed(3)}KB)`);
+//     console.log(`- Fee: ${estimatedFee} sats`);
+//     console.log(`- Actual fee rate: ${actualFeeRate.toFixed(3)} sat/KB`);
+//     console.log(`- Target fee rate: ${feeRate} sat/KB`);
+//     console.log(`- Inscription type: ${inscriptionType}`);
+//     console.log(`- Content type: ${contentType}`);
+
+//     // Broadcast
+//     const broadcastService = new BroadcastService(network);
+//     const result = await broadcastService.broadcast(txHex);
+
+//     if (result.success) {
+//       utxoManager.markAsSpent(selected);
+      
+//       const encryptionInfo = encryptionLevel > 0 
+//         ? ` (Encrypted: Level ${encryptionLevel})` 
+//         : '';
+      
+//       return {
+//         success: true,
+//         txid: result.txid,
+//         message: `${inscriptionType === 'wallt4' ? 'Wallt4 post' : 'Ordinal'} created${encryptionInfo}! TXID: ${result.txid}`
+//       };
+//     } else {
+//       return {
+//         success: false,
+//         error: result.error,
+//         message: 'Failed to broadcast transaction'
+//       };
+//     }
+
+//   } catch (error) {
+//     console.error('Error creating ordinal:', error);
+    
+//     let errorMessage = 'Failed to create ordinal';
+    
+//     if (error instanceof Error) {
+//       if (error.message.includes('too many function arguments')) {
+//         errorMessage = 'Transaction too complex. Try reducing image sizes or removing one image.';
+//       } else if (error.message.includes('too large')) {
+//         errorMessage = error.message;
+//       } else if (error.message.includes('Insufficient funds')) {
+//         errorMessage = error.message;
+//       } else {
+//         errorMessage = `Error: ${error.message}`;
+//       }
+//     }
+    
+//     return {
+//       success: false,
+//       error: errorMessage,
+//       message: 'Failed to create ordinal'
+//     };
+//   }
+// };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

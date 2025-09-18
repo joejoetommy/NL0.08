@@ -353,7 +353,7 @@ export const PropertySheet: React.FC<PropertySheetProps> = ({
     <Sheet open={showSheet} onOpenChange={setShowSheet}>
       <SheetTrigger asChild>
         <Button variant="outline" className="w-full">
-          🏠 Create Property Listing
+          Create Property Listing 5.0
         </Button>
       </SheetTrigger>
       <SheetContent className="h-screen max-h-screen overflow-y-auto w-[500px]">
