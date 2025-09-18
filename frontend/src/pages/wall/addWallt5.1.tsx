@@ -1,10 +1,27 @@
+
 import React, { useState } from 'react';
 import { PrivateKey, Transaction, P2PKH, Script, Utils } from '@bsv/sdk';
 import { UTXOManager } from '../../components/wallet2/utils/blockchain';
 import { BroadcastService } from '../../components/wallet2/services/BroadcastService';
 import { createInscriptionScript } from '../../components/wallet2/inscriptions/utils/inscriptionCreator';
 import { BlogEncryption, EncryptionLevel, getEncryptionLevelLabel } from '../../components/wallet2/inscriptions/utils/BlogEncryption';
-import { PropertySheet } from './sheetwallt5';
+
+// ============================================================================
+// PROPERTY SHEET IMPORTS
+// ============================================================================
+// Import different property sheet components here
+// Each sheet can have different form fields but must follow the same interface
+import { PropertySheet } from './sheetwallt5';        // Original property listing form
+import { PropertySheet1 } from './sheetwallt5.1';     // Alternative form (you'll create this)
+// import { PropertySheet2 } from './sheetwallt5.2';  // Future: Another form variant
+// import { PropertySheet3 } from './sheetwallt5.3';  // Future: Another form variant
+// import { PropertySheet4 } from './sheetwallt5.4';  // Future: Another form variant
+
+// ============================================================================
+// FORM TYPE ENUM
+// ============================================================================
+// Add new form types here as you create them
+type FormType = 'property' | 'property1'; // | 'property2' | 'property3' | 'property4';
 
 // Define the props interface
 interface CreateLargeProfileInscriptionProps {
@@ -50,6 +67,12 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
 }) => {
   const [loading, setLoading] = useState(false);
   const [showSheet, setShowSheet] = useState(false);
+  
+  // ============================================================================
+  // FORM TYPE SELECTION STATE
+  // ============================================================================
+  // This determines which PropertySheet component to render
+  const [selectedFormType, setSelectedFormType] = useState<FormType>('property');
   
   // Property data state
   const [propertyData, setPropertyData] = useState<any>(null);
@@ -704,15 +727,170 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
         </div>
       )}
 
-      {/* Property Sheet Component */}
+      {/* ========================================================================
+          FORM TYPE SELECTOR
+          ========================================================================
+          This section allows users to choose which form type they want to use.
+          Add new buttons here as you create new PropertySheet components.
+      */}
       {!chunkStates.length && (
-        <PropertySheet
-          showSheet={showSheet}
-          setShowSheet={setShowSheet}
-          onSubmit={handlePropertyFormSubmit}
-          blogKeyHistory={blogKeyHistory}
-        />
+        <div className="p-4 bg-gray-800 rounded-lg">
+          <h3 className="text-sm font-medium text-gray-300 mb-3">Select Form Type:</h3>
+          <div className="flex gap-2 flex-wrap">
+            {/* Original Property Form Button */}
+            <button
+              onClick={() => setSelectedFormType('property')}
+              className={`px-4 py-2 rounded transition-all ${
+                selectedFormType === 'property'
+                  ? 'bg-purple-500 text-white'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
+            >
+              🏠 Property Listing (Original)
+            </button>
+            
+            {/* Property Form 1 Button */}
+            <button
+              onClick={() => setSelectedFormType('property1')}
+              className={`px-4 py-2 rounded transition-all ${
+                selectedFormType === 'property1'
+                  ? 'bg-purple-500 text-white'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
+            >
+              🏢 Property Form 1 (Alternative)
+            </button>
+            
+            {/* ====================================================================
+                FUTURE FORM TYPE BUTTONS
+                ====================================================================
+                Uncomment and customize these as you create new PropertySheet components:
+                
+            <button
+              onClick={() => setSelectedFormType('property2')}
+              className={`px-4 py-2 rounded transition-all ${
+                selectedFormType === 'property2'
+                  ? 'bg-purple-500 text-white'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
+            >
+              🏨 Property Form 2 (Hotels)
+            </button>
+            
+            <button
+              onClick={() => setSelectedFormType('property3')}
+              className={`px-4 py-2 rounded transition-all ${
+                selectedFormType === 'property3'
+                  ? 'bg-purple-500 text-white'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
+            >
+              🏖️ Property Form 3 (Vacation Rentals)
+            </button>
+            
+            <button
+              onClick={() => setSelectedFormType('property4')}
+              className={`px-4 py-2 rounded transition-all ${
+                selectedFormType === 'property4'
+                  ? 'bg-purple-500 text-white'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
+            >
+              🏪 Property Form 4 (Commercial)
+            </button>
+            */}
+          </div>
+          
+          {/* Form Type Description - helps users understand what each form is for */}
+          <div className="mt-3 p-3 bg-gray-900 rounded">
+            <p className="text-xs text-gray-400">
+              {selectedFormType === 'property' && 
+                "Original property listing form with full hotel/accommodation details, facilities, and host information."}
+              {selectedFormType === 'property1' && 
+                "Alternative property form - customize this description based on your form's purpose."}
+              {/* Add descriptions for future form types here:
+              {selectedFormType === 'property2' && 
+                "Hotel-specific form with advanced booking and room management features."}
+              {selectedFormType === 'property3' && 
+                "Vacation rental form optimized for short-term holiday lettings."}
+              {selectedFormType === 'property4' && 
+                "Commercial property form for office spaces, retail units, and warehouses."}
+              */}
+            </p>
+          </div>
+        </div>
       )}
+
+      {/* ========================================================================
+          PROPERTY SHEET COMPONENTS
+          ========================================================================
+          This section renders the appropriate PropertySheet component based on
+          the selected form type. Each component must follow the same interface.
+      */}
+      {!chunkStates.length && (
+        <>
+          {/* Original PropertySheet Component */}
+          {selectedFormType === 'property' && (
+            <PropertySheet
+              showSheet={showSheet}
+              setShowSheet={setShowSheet}
+              onSubmit={handlePropertyFormSubmit}
+              blogKeyHistory={blogKeyHistory}
+            />
+          )}
+          
+          {/* PropertySheet1 Component */}
+          {selectedFormType === 'property1' && (
+            <PropertySheet1
+              showSheet={showSheet}
+              setShowSheet={setShowSheet}
+              onSubmit={handlePropertyFormSubmit}
+              blogKeyHistory={blogKeyHistory}
+            />
+          )}
+          
+          {/* ====================================================================
+              FUTURE PROPERTY SHEET COMPONENTS
+              ====================================================================
+              Uncomment and add these as you create new PropertySheet components.
+              Make sure each follows the same interface (props structure).
+              
+          {selectedFormType === 'property2' && (
+            <PropertySheet2
+              showSheet={showSheet}
+              setShowSheet={setShowSheet}
+              onSubmit={handlePropertyFormSubmit}
+              blogKeyHistory={blogKeyHistory}
+            />
+          )}
+          
+          {selectedFormType === 'property3' && (
+            <PropertySheet3
+              showSheet={showSheet}
+              setShowSheet={setShowSheet}
+              onSubmit={handlePropertyFormSubmit}
+              blogKeyHistory={blogKeyHistory}
+            />
+          )}
+          
+          {selectedFormType === 'property4' && (
+            <PropertySheet4
+              showSheet={showSheet}
+              setShowSheet={setShowSheet}
+              onSubmit={handlePropertyFormSubmit}
+              blogKeyHistory={blogKeyHistory}
+            />
+          )}
+          */}
+        </>
+      )}
+
+      {/* ========================================================================
+          BCAT PROCESSING UI
+          ========================================================================
+          Everything below this point remains the same regardless of which form
+          is used. The BCAT protocol handles all data the same way.
+      */}
 
       {/* Chunk Configuration */}
       {chunkStates.length > 0 && (
@@ -871,6 +1049,943 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
     </div>
   );
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Below is working code; Now the next update above is the code that can be scaled for future documents, plug it new sheets forms and it shall work. 
+
+// import React, { useState } from 'react';
+// import { PrivateKey, Transaction, P2PKH, Script, Utils } from '@bsv/sdk';
+// import { UTXOManager } from '../../components/wallet2/utils/blockchain';
+// import { BroadcastService } from '../../components/wallet2/services/BroadcastService';
+// import { createInscriptionScript } from '../../components/wallet2/inscriptions/utils/inscriptionCreator';
+// import { BlogEncryption, EncryptionLevel, getEncryptionLevelLabel } from '../../components/wallet2/inscriptions/utils/BlogEncryption';
+// import { PropertySheet } from './sheetwallt5';
+
+// // Define the props interface
+// interface CreateLargeProfileInscriptionProps {
+//   keyData: any;
+//   network: 'mainnet' | 'testnet';
+//   whatsOnChainApiKey?: string;
+//   currentFeeRate: number;
+//   balance: { confirmed: number; unconfirmed: number };
+//   lastTransactionTime: number;
+//   setStatus: (status: { type: 'success' | 'error' | 'info' | null; message: string }) => void;
+//   setLastTxid: (txid: string) => void;
+//   setLastTransactionTime: (time: number) => void;
+//   blogKeyHistory?: any;
+//   getKeySegmentForLevel?: (level: number) => string | null;
+// }
+
+// interface ChunkUploadState {
+//   chunkIndex: number;
+//   chunkData: Uint8Array;
+//   txid: string | null;
+//   status: 'pending' | 'uploading' | 'success' | 'failed';
+//   attempts: number;
+//   error?: string;
+//   lastAttemptTime?: number;
+// }
+
+// // BCAT Protocol Constants
+// const BCAT_NAMESPACE = '15DHFxWZJT58f9nhyGnsRBqrgwK4W6h4Up';
+// const BCAT_PART_NAMESPACE = '1ChDHzdd1H4wSjgGMHyndZm6qxEDGjqpJL';
+
+// export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscriptionProps> = ({
+//   keyData,
+//   network,
+//   whatsOnChainApiKey,
+//   currentFeeRate,
+//   balance,
+//   lastTransactionTime,
+//   setStatus,
+//   setLastTxid,
+//   setLastTransactionTime,
+//   blogKeyHistory,
+//   getKeySegmentForLevel
+// }) => {
+//   const [loading, setLoading] = useState(false);
+//   const [showSheet, setShowSheet] = useState(false);
+  
+//   // Property data state
+//   const [propertyData, setPropertyData] = useState<any>(null);
+//   const [selectedEncryptionLevel, setSelectedEncryptionLevel] = useState<EncryptionLevel>(0);
+//   const [isEncrypting, setIsEncrypting] = useState(false);
+  
+//   // Chunk management
+//   const [chunkSizeMB, setChunkSizeMB] = useState<number>(2.0);
+//   const [customChunkSize, setCustomChunkSize] = useState<string>('2.0');
+//   const [chunkStates, setChunkStates] = useState<ChunkUploadState[]>([]);
+//   const [processingMode, setProcessingMode] = useState<'sequential' | 'manual'>('sequential');
+//   const [isProcessing, setIsProcessing] = useState(false);
+//   const [currentProcessingIndex, setCurrentProcessingIndex] = useState<number | null>(null);
+//   const [isPaused, setIsPaused] = useState(false);
+//   const [shouldStop, setShouldStop] = useState(false);
+//   const [lastBCATTxid, setLastBCATTxid] = useState<string>('');
+
+//   // Handle chunk size change
+//   const handleChunkSizeChange = (value: string) => {
+//     setCustomChunkSize(value);
+//     const size = parseFloat(value);
+//     if (!isNaN(size) && size > 0 && size <= 10) {
+//       setChunkSizeMB(size);
+//     }
+//   };
+
+//   // Prepare files for BCAT chunking
+//   const prepareFilesForBCAT = async (formData: any): Promise<Uint8Array> => {
+//     const parts: Uint8Array[] = [];
+    
+//     // Create property metadata
+//     const propertyMetadata = {
+//       title: formData.title,
+//       description: formData.description,
+//       propertyName: formData.formData.propertyName,
+//       // Add other necessary fields
+//       createdAt: new Date().toISOString()
+//     };
+    
+//     const jsonBytes = new TextEncoder().encode(JSON.stringify(propertyMetadata));
+//     parts.push(jsonBytes);
+    
+//     // Add images if present
+//     const addImage = async (file: File | null) => {
+//       if (file) {
+//         const arrayBuffer = await file.arrayBuffer();
+//         parts.push(new Uint8Array(arrayBuffer));
+//       }
+//     };
+    
+//     await addImage(formData.alertDialogImage);
+//     await addImage(formData.profileImage);
+    
+//     // Combine all parts
+//     const totalLength = parts.reduce((sum, part) => sum + part.length, 0);
+//     const combined = new Uint8Array(totalLength);
+//     let offset = 0;
+//     for (const part of parts) {
+//       combined.set(part, offset);
+//       offset += part.length;
+//     }
+    
+//     return combined;
+//   };
+
+//   // Chunk data function
+//   const chunkData = (data: Uint8Array, chunkSizeMB: number): Uint8Array[] => {
+//     const chunkSizeBytes = Math.floor(chunkSizeMB * 1024 * 1024);
+//     const chunks: Uint8Array[] = [];
+    
+//     for (let offset = 0; offset < data.length; offset += chunkSizeBytes) {
+//       const chunk = data.slice(offset, Math.min(offset + chunkSizeBytes, data.length));
+//       chunks.push(chunk);
+//     }
+    
+//     return chunks;
+//   };
+
+//   // Handle property form submission
+//   const handlePropertyFormSubmit = async (formData: any) => {
+//     setPropertyData(formData);
+//     setSelectedEncryptionLevel(formData.encryptionLevel as EncryptionLevel);
+    
+//     const encryptionLevel = formData.encryptionLevel;
+//     setStatus({ 
+//       type: 'info', 
+//       message: encryptionLevel > 0 
+//         ? 'Encrypting and preparing property data for BCAT...' 
+//         : 'Preparing property data for BCAT...' 
+//     });
+    
+//     try {
+//       setIsEncrypting(encryptionLevel > 0);
+      
+//       let allData = await prepareFilesForBCAT(formData);
+      
+//       // Encrypt if encryption level is selected
+//       if (encryptionLevel > 0 && blogKeyHistory?.current && getKeySegmentForLevel) {
+//         const keySegment = getKeySegmentForLevel(encryptionLevel);
+//         if (!keySegment) {
+//           throw new Error(`No key segment available for encryption level ${encryptionLevel}`);
+//         }
+        
+//         const { encryptedData, metadata } = await BlogEncryption.prepareEncryptedInscription(
+//           allData,
+//           encryptionLevel,
+//           keySegment
+//         );
+        
+//         const wrapper = {
+//           encrypted: true,
+//           encryptionLevel: encryptionLevel,
+//           originalType: 'property',
+//           data: encryptedData,
+//           metadata: metadata
+//         };
+        
+//         allData = new TextEncoder().encode(JSON.stringify(wrapper));
+//       }
+      
+//       setIsEncrypting(false);
+      
+//       // Chunk the data
+//       const chunks = chunkData(allData, chunkSizeMB);
+//       const newChunkStates: ChunkUploadState[] = chunks.map((chunk, index) => ({
+//         chunkIndex: index,
+//         chunkData: chunk,
+//         txid: null,
+//         status: 'pending',
+//         attempts: 0
+//       }));
+      
+//       setChunkStates(newChunkStates);
+      
+//       setStatus({ 
+//         type: 'info', 
+//         message: `Data prepared: ${chunks.length} chunks of ${chunkSizeMB}MB each`
+//       });
+//     } catch (error) {
+//       console.error('Error preparing BCAT data:', error);
+//       setIsEncrypting(false);
+//       setStatus({ 
+//         type: 'error', 
+//         message: error instanceof Error ? error.message : 'Failed to prepare data' 
+//       });
+//     }
+//   };
+
+//   // Upload a single chunk
+//   const uploadSingleChunk = async (chunkIndex: number): Promise<{ success: boolean; txid?: string; error?: string }> => {
+//     const chunkState = chunkStates[chunkIndex];
+//     if (!chunkState) {
+//       return { success: false, error: 'Chunk not found' };
+//     }
+
+//     if (chunkState.status === 'success' && chunkState.txid) {
+//       return { success: true, txid: chunkState.txid };
+//     }
+
+//     const broadcastService = new BroadcastService(network, (message: string) => {
+//       setStatus({ type: 'info', message: `Chunk ${chunkIndex + 1}: ${message}` });
+//     }, 10000);
+    
+//     const privateKey = PrivateKey.fromWif(keyData.privateKeyWif) || PrivateKey.fromHex(keyData.privateKeyHex);
+//     const address = privateKey.toPublicKey().toAddress();
+    
+//     try {
+//       setChunkStates(prevStates => {
+//         const newStates = [...prevStates];
+//         newStates[chunkIndex] = { 
+//           ...newStates[chunkIndex], 
+//           status: 'uploading',
+//           attempts: newStates[chunkIndex].attempts + 1,
+//           lastAttemptTime: Date.now()
+//         };
+//         return newStates;
+//       });
+
+//       const utxoManager = new UTXOManager(keyData.address, network, whatsOnChainApiKey);
+//       const utxos = await utxoManager.fetchUTXOs(true);
+      
+//       if (utxos.length === 0) {
+//         throw new Error('No UTXOs available');
+//       }
+      
+//       const chunkData = chunkState.chunkData;
+//       const estimatedFee = Math.ceil((300 + chunkData.length) / 1000) * currentFeeRate;
+//       const { selected, total } = utxoManager.selectUTXOs(estimatedFee);
+      
+//       if (selected.length === 0) {
+//         throw new Error(`Insufficient funds. Need ${estimatedFee} sats`);
+//       }
+      
+//       const tx = new Transaction();
+      
+//       // Add inputs with proper sourceTransaction structure
+//       let totalInput = 0;
+//       for (const utxo of selected) {
+//         const txid = utxo.tx_hash || utxo.txid;
+//         const vout = utxo.tx_pos !== undefined ? utxo.tx_pos : (utxo.vout || 0);
+//         const satoshis = utxo.value || utxo.satoshis || 0;
+        
+//         totalInput += satoshis;
+        
+//         // Create properly structured sourceTransaction
+//         const sourceTransaction = {
+//           id: txid,
+//           version: 1,
+//           inputs: [],
+//           outputs: [],
+//           lockTime: 0
+//         };
+        
+//         // Ensure outputs array is properly initialized up to the vout index
+//         for (let i = 0; i <= vout; i++) {
+//           sourceTransaction.outputs[i] = {
+//             satoshis: i === vout ? satoshis : 0,
+//             lockingScript: new P2PKH().lock(address)
+//           };
+//         }
+        
+//         tx.addInput({
+//           sourceTXID: txid,
+//           sourceOutputIndex: vout,
+//           unlockingScriptTemplate: new P2PKH().unlock(privateKey),
+//           sourceTransaction: sourceTransaction
+//         });
+//       }
+      
+//       // Create BCAT part output with proper OP_RETURN structure
+//       let scriptHex = '6a';
+      
+//       // Add BCAT part namespace
+//       const namespaceBytes = Utils.toArray(BCAT_PART_NAMESPACE, 'utf8');
+//       if (namespaceBytes.length <= 75) {
+//         scriptHex += namespaceBytes.length.toString(16).padStart(2, '0');
+//       } else {
+//         scriptHex += '4c';
+//         scriptHex += namespaceBytes.length.toString(16).padStart(2, '0');
+//       }
+//       scriptHex += namespaceBytes.map(b => b.toString(16).padStart(2, '0')).join('');
+      
+//       // Add data length and data
+//       const dataLength = chunkData.length;
+//       if (dataLength <= 75) {
+//         scriptHex += dataLength.toString(16).padStart(2, '0');
+//       } else if (dataLength <= 255) {
+//         scriptHex += '4c';
+//         scriptHex += dataLength.toString(16).padStart(2, '0');
+//       } else if (dataLength <= 65535) {
+//         scriptHex += '4d';
+//         scriptHex += (dataLength & 0xff).toString(16).padStart(2, '0');
+//         scriptHex += ((dataLength >> 8) & 0xff).toString(16).padStart(2, '0');
+//       } else {
+//         scriptHex += '4e';
+//         scriptHex += (dataLength & 0xff).toString(16).padStart(2, '0');
+//         scriptHex += ((dataLength >> 8) & 0xff).toString(16).padStart(2, '0');
+//         scriptHex += ((dataLength >> 16) & 0xff).toString(16).padStart(2, '0');
+//         scriptHex += ((dataLength >> 24) & 0xff).toString(16).padStart(2, '0');
+//       }
+      
+//       // Add data in batches to avoid memory issues
+//       const BATCH_SIZE = 10000;
+//       for (let j = 0; j < chunkData.length; j += BATCH_SIZE) {
+//         const batch = chunkData.slice(j, Math.min(j + BATCH_SIZE, chunkData.length));
+//         scriptHex += Array.from(batch).map(b => b.toString(16).padStart(2, '0')).join('');
+//       }
+      
+//       const script = Script.fromHex(scriptHex);
+      
+//       tx.addOutput({
+//         lockingScript: script,
+//         satoshis: 0
+//       });
+      
+//       // Add change output
+//       const change = totalInput - estimatedFee;
+//       if (change > 0) {
+//         tx.addOutput({
+//           lockingScript: new P2PKH().lock(address),
+//           satoshis: change
+//         });
+//       }
+      
+//       await tx.sign();
+//       const txHex = tx.toHex();
+//       const result = await broadcastService.broadcast(txHex);
+      
+//       if (result.success && result.txid) {
+//         utxoManager.markAsSpent(selected);
+        
+//         setChunkStates(prevStates => {
+//           const newStates = [...prevStates];
+//           newStates[chunkIndex] = { 
+//             ...newStates[chunkIndex], 
+//             status: 'success', 
+//             txid: result.txid,
+//             error: undefined
+//           };
+//           return newStates;
+//         });
+        
+//         console.log(`✅ Chunk ${chunkIndex + 1} successfully uploaded: ${result.txid}`);
+//         return { success: true, txid: result.txid };
+//       } else {
+//         throw new Error(result.error || 'Broadcast failed');
+//       }
+      
+//     } catch (error) {
+//       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+//       setChunkStates(prevStates => {
+//         const newStates = [...prevStates];
+//         newStates[chunkIndex] = { 
+//           ...newStates[chunkIndex], 
+//           status: 'failed', 
+//           error: errorMessage
+//         };
+//         return newStates;
+//       });
+      
+//       console.error(`❌ Chunk ${chunkIndex + 1} failed: ${errorMessage}`);
+//       return { success: false, error: errorMessage };
+//     }
+//   };
+
+//   // Upload a specific chunk (manual mode)
+//   const uploadChunk = async (chunkIndex: number) => {
+//     const result = await uploadSingleChunk(chunkIndex);
+    
+//     if (result.success) {
+//       setStatus({ 
+//         type: 'success', 
+//         message: `Chunk ${chunkIndex + 1} uploaded successfully!` 
+//       });
+//       checkAllChunksComplete();
+//     } else {
+//       setStatus({ 
+//         type: 'error', 
+//         message: `Chunk ${chunkIndex + 1} failed: ${result.error}` 
+//       });
+//     }
+//   };
+
+//   // Process chunks sequentially
+//   const processChunksSequentially = async () => {
+//     setIsProcessing(true);
+//     setShouldStop(false);
+//     setIsPaused(false);
+    
+//     for (let i = 0; i < chunkStates.length; i++) {
+//       if (shouldStop) break;
+      
+//       while (isPaused && !shouldStop) {
+//         await new Promise(resolve => setTimeout(resolve, 100));
+//       }
+      
+//       if (shouldStop) break;
+      
+//       if (chunkStates[i].status === 'success') continue;
+      
+//       setCurrentProcessingIndex(i);
+      
+//       const result = await uploadSingleChunk(i);
+      
+//       if (!result.success && chunkStates[i].attempts < 3) {
+//         await new Promise(resolve => setTimeout(resolve, 5000));
+//         await uploadSingleChunk(i);
+//       }
+      
+//       if (i < chunkStates.length - 1) {
+//         await new Promise(resolve => setTimeout(resolve, 3000));
+//       }
+//     }
+    
+//     setIsProcessing(false);
+//     setCurrentProcessingIndex(null);
+//     checkAllChunksComplete();
+//   };
+
+//   // Control functions
+//   const stopProcessing = () => {
+//     setShouldStop(true);
+//     setIsPaused(false);
+//   };
+
+//   const pauseProcessing = () => {
+//     setIsPaused(true);
+//   };
+
+//   const resumeProcessing = () => {
+//     setIsPaused(false);
+//   };
+
+//   const checkAllChunksComplete = () => {
+//     const allSuccess = chunkStates.every(state => state.status === 'success' && state.txid);
+//     if (allSuccess) {
+//       setStatus({ 
+//         type: 'success', 
+//         message: '✅ All chunks uploaded! Ready to create BCAT reference.' 
+//       });
+//     }
+//   };
+
+//   const getAllChunksComplete = () => {
+//     return chunkStates.length > 0 && 
+//            chunkStates.every(state => state.status === 'success' && state.txid);
+//   };
+
+//   // Create final BCAT transaction
+//   const createLargeProfileOrdinal = async () => {
+//     if (!propertyData || !keyData.privateKey) {
+//       setStatus({ type: 'error', message: 'Missing required data' });
+//       return;
+//     }
+
+//     const successfulChunks = chunkStates.filter(state => state.status === 'success' && state.txid);
+//     if (successfulChunks.length !== chunkStates.length) {
+//       setStatus({ 
+//         type: 'error', 
+//         message: `Not all chunks uploaded. ${successfulChunks.length} of ${chunkStates.length} chunks complete.` 
+//       });
+//       return;
+//     }
+
+//     const timeSinceLastTx = Date.now() - lastTransactionTime;
+//     if (timeSinceLastTx < 5000) {
+//       setStatus({ 
+//         type: 'error', 
+//         message: `Please wait ${Math.ceil((5000 - timeSinceLastTx) / 1000)} seconds before creating another inscription`
+//       });
+//       return;
+//     }
+    
+//     setLoading(true);
+    
+//     try {
+//       const chunkTxIds = chunkStates
+//         .sort((a, b) => a.chunkIndex - b.chunkIndex)
+//         .map(state => state.txid!);
+      
+//       setStatus({ type: 'info', message: 'Waiting for chunks to propagate...' });
+//       await new Promise(resolve => setTimeout(resolve, 5000));
+      
+//       setStatus({ type: 'info', message: 'Creating BCAT reference transaction...' });
+      
+//       const utxoManager = new UTXOManager(keyData.address, network, whatsOnChainApiKey);
+//       const utxos = await utxoManager.fetchUTXOs(true);
+      
+//       const privateKey = PrivateKey.fromWif(keyData.privateKeyWif) || PrivateKey.fromHex(keyData.privateKeyHex);
+//       const pubKeyHash = privateKey.toPublicKey().toHash();
+//       const address = privateKey.toPublicKey().toAddress();
+      
+//       // Create metadata for the inscription
+//       const metadata = {
+//         title: propertyData.title || 'Untitled Property',
+//         description: propertyData.description || '',
+//         propertyName: propertyData.formData?.propertyName || '',
+//         type: 'property',
+//         encrypted: selectedEncryptionLevel > 0,
+//         encryptionLevel: selectedEncryptionLevel,
+//         chunks: chunkTxIds.length,
+//         created: new Date().toISOString()
+//       };
+      
+//       const metadataBytes = new TextEncoder().encode(JSON.stringify(metadata));
+//       const filename = `${(propertyData.title || 'property').substring(0, 30)}_property.bcat`;
+      
+//       // Create inscription script
+//       const inscriptionScript = createInscriptionScript(
+//         pubKeyHash,
+//         'application/json',
+//         metadataBytes
+//       );
+      
+//       // Calculate fees
+//       const opReturnSize = 1 + 1 + 35 + 1 + 10 + 1 + 24 + 1 + 1 + 50 + 1 + (chunkTxIds.length * 33);
+//       const estimatedTxSize = 300 + metadataBytes.length + opReturnSize;
+//       const estimatedFee = Math.ceil((estimatedTxSize / 1000) * currentFeeRate) + 100;
+      
+//       const { selected, total } = utxoManager.selectUTXOs(1 + estimatedFee + 546);
+      
+//       if (selected.length === 0) {
+//         throw new Error(`Insufficient funds. Need ${1 + estimatedFee + 546} sats, have ${total} sats`);
+//       }
+      
+//       const tx = new Transaction();
+      
+//       // Add inputs with proper sourceTransaction structure
+//       let totalInput = 0;
+//       for (const utxo of selected) {
+//         const txid = utxo.tx_hash || utxo.txid;
+//         const vout = utxo.tx_pos !== undefined ? utxo.tx_pos : (utxo.vout || 0);
+//         const satoshis = utxo.value || utxo.satoshis || 0;
+        
+//         totalInput += satoshis;
+        
+//         // Create properly structured sourceTransaction
+//         const sourceTransaction = {
+//           id: txid,
+//           version: 1,
+//           inputs: [],
+//           outputs: [],
+//           lockTime: 0
+//         };
+        
+//         // Ensure outputs array is properly initialized
+//         for (let i = 0; i <= vout; i++) {
+//           sourceTransaction.outputs[i] = sourceTransaction.outputs[i] || {
+//             satoshis: i === vout ? satoshis : 0,
+//             lockingScript: new P2PKH().lock(address)
+//           };
+//         }
+        
+//         tx.addInput({
+//           sourceTXID: txid,
+//           sourceOutputIndex: vout,
+//           unlockingScriptTemplate: new P2PKH().unlock(privateKey),
+//           sourceTransaction: sourceTransaction
+//         });
+//       }
+      
+//       // Add inscription output
+//       tx.addOutput({
+//         lockingScript: inscriptionScript,
+//         satoshis: 1
+//       });
+      
+//       // Create BCAT reference in OP_RETURN
+//       let scriptHex = '6a';
+      
+//       // Add BCAT namespace
+//       const namespaceBytes = Utils.toArray(BCAT_NAMESPACE, 'utf8');
+//       scriptHex += namespaceBytes.length.toString(16).padStart(2, '0');
+//       scriptHex += namespaceBytes.map(b => b.toString(16).padStart(2, '0')).join('');
+      
+//       // Add info field
+//       const info = 'BCAT';
+//       const infoBytes = Utils.toArray(info, 'utf8');
+//       scriptHex += infoBytes.length.toString(16).padStart(2, '0');
+//       scriptHex += infoBytes.map(b => b.toString(16).padStart(2, '0')).join('');
+      
+//       // Add mime type
+//       const mimeType = 'application/json';
+//       const mimeBytes = Utils.toArray(mimeType.substring(0, 128), 'utf8');
+//       scriptHex += mimeBytes.length.toString(16).padStart(2, '0');
+//       scriptHex += mimeBytes.map(b => b.toString(16).padStart(2, '0')).join('');
+      
+//       // Add encoding (0x00 for binary)
+//       scriptHex += '00';
+      
+//       // Add filename
+//       const filenameBytes = Utils.toArray(filename, 'utf8');
+//       scriptHex += filenameBytes.length.toString(16).padStart(2, '0');
+//       scriptHex += filenameBytes.map(b => b.toString(16).padStart(2, '0')).join('');
+      
+//       // Add flag (0x00)
+//       scriptHex += '00';
+      
+//       // Add chunk transaction IDs (reversed for little-endian)
+//       for (const txid of chunkTxIds) {
+//         scriptHex += '20'; // 32 bytes for txid
+//         // Reverse the txid for little-endian format
+//         for (let i = txid.length - 2; i >= 0; i -= 2) {
+//           scriptHex += txid.substr(i, 2);
+//         }
+//       }
+      
+//       const bcatScript = Script.fromHex(scriptHex);
+      
+//       tx.addOutput({
+//         lockingScript: bcatScript,
+//         satoshis: 0
+//       });
+      
+//       // Add change output
+//       const change = totalInput - 1 - estimatedFee;
+      
+//       if (change > 546) {
+//         tx.addOutput({
+//           lockingScript: new P2PKH().lock(address),
+//           satoshis: change
+//         });
+//       }
+      
+//       await tx.sign();
+//       const txHex = tx.toHex();
+      
+//       const broadcastService = new BroadcastService(network, (message: string) => {
+//         setStatus({ 
+//           type: 'info', 
+//           message: `BCAT Reference TX: ${message}` 
+//         });
+//       });
+      
+//       const result = await broadcastService.broadcast(txHex);
+      
+//       if (result.success) {
+//         setLastTxid(result.txid!);
+//         setLastTransactionTime(Date.now());
+//         setLastBCATTxid(result.txid!);
+        
+//         const successMessage = selectedEncryptionLevel > 0
+//           ? `🔒 Encrypted Property BCAT created successfully!\nMain TX: ${result.txid}\nProperty: "${propertyData.title || 'Property'}"\nEncryption Level: ${selectedEncryptionLevel}\nChunks: ${chunkTxIds.length}`
+//           : `Property BCAT created successfully!\nMain TX: ${result.txid}\nProperty: "${propertyData.title || 'Property'}"\nChunks: ${chunkTxIds.length}`;
+        
+//         setStatus({ 
+//           type: 'success', 
+//           message: successMessage 
+//         });
+        
+//         // Clear the success message after 30 seconds
+//         setTimeout(() => {
+//           setLastBCATTxid('');
+//         }, 30000);
+        
+//         // Clear state
+//         setPropertyData(null);
+//         setChunkStates([]);
+//         setSelectedEncryptionLevel(0);
+//       } else {
+//         throw new Error(result.error || 'Failed to broadcast BCAT transaction');
+//       }
+      
+//     } catch (error) {
+//       console.error('Error creating BCAT inscription:', error);
+//       setStatus({ 
+//         type: 'error', 
+//         message: error instanceof Error ? error.message : 'Failed to create BCAT inscription' 
+//       });
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   const allChunksComplete = getAllChunksComplete();
+
+//   return (
+//     <div className="space-y-4">
+//       {/* Success message with transaction link */}
+//       {lastBCATTxid && (
+//         <div className="p-4 bg-green-900 bg-opacity-30 border border-green-700 rounded-lg">
+//           <p className="text-green-300 mb-2">✅ BCAT Property Created Successfully!</p>
+//           <a 
+//             href={`https://${network === 'testnet' ? 'test.' : ''}whatsonchain.com/tx/${lastBCATTxid}`}
+//             target="_blank"
+//             rel="noopener noreferrer"
+//             className="text-green-400 hover:text-green-300 underline"
+//           >
+//             View Transaction on WhatsOnChain →
+//           </a>
+//         </div>
+//       )}
+
+//       {/* Property Sheet Component */}
+//       {!chunkStates.length && (
+//         <PropertySheet
+//           showSheet={showSheet}
+//           setShowSheet={setShowSheet}
+//           onSubmit={handlePropertyFormSubmit}
+//           blogKeyHistory={blogKeyHistory}
+//         />
+//       )}
+
+//       {/* Chunk Configuration */}
+//       {chunkStates.length > 0 && (
+//         <div className="p-3 bg-yellow-900 bg-opacity-30 rounded-lg border border-yellow-700">
+//           <p className="text-sm text-yellow-300">
+//             📦 Property data ready for BCAT upload
+//             {selectedEncryptionLevel > 0 && ` (🔒 Encrypted level ${selectedEncryptionLevel})`}
+//           </p>
+//           <div className="flex items-center gap-2 mt-2">
+//             <label className="text-xs text-yellow-200">Chunk size:</label>
+//             <input
+//               type="number"
+//               min="0.1"
+//               max="10"
+//               step="0.1"
+//               value={customChunkSize}
+//               onChange={(e) => handleChunkSizeChange(e.target.value)}
+//               className="px-2 py-1 w-20 bg-gray-800 border border-gray-600 rounded text-white text-xs"
+//               disabled={isProcessing}
+//             />
+//             <span className="text-xs text-yellow-200">MB per chunk</span>
+//           </div>
+//         </div>
+//       )}
+
+//       {/* Upload Mode Selection */}
+//       {chunkStates.length > 0 && (
+//         <div className="p-3 bg-gray-800 rounded-lg">
+//           <div className="flex items-center gap-4">
+//             <span className="text-sm text-gray-300">Upload Mode:</span>
+//             <label className="flex items-center gap-2">
+//               <input
+//                 type="radio"
+//                 value="sequential"
+//                 checked={processingMode === 'sequential'}
+//                 onChange={() => setProcessingMode('sequential')}
+//                 disabled={isProcessing}
+//               />
+//               <span className="text-sm text-gray-300">Sequential</span>
+//             </label>
+//             <label className="flex items-center gap-2">
+//               <input
+//                 type="radio"
+//                 value="manual"
+//                 checked={processingMode === 'manual'}
+//                 onChange={() => setProcessingMode('manual')}
+//                 disabled={isProcessing}
+//               />
+//               <span className="text-sm text-gray-300">Manual</span>
+//             </label>
+//           </div>
+//         </div>
+//       )}
+
+//       {/* Chunk Upload Status */}
+//       {chunkStates.length > 0 && (
+//         <div className="p-4 bg-gray-800 rounded-lg space-y-3">
+//           <div className="flex justify-between items-center">
+//             <h4 className="text-sm font-medium text-gray-300">
+//               Chunk Status ({chunkStates.filter(s => s.status === 'success').length}/{chunkStates.length})
+//             </h4>
+//             <div className="flex gap-2">
+//               {processingMode === 'sequential' && !allChunksComplete && !isProcessing && (
+//                 <button
+//                   onClick={processChunksSequentially}
+//                   className="px-3 py-1 bg-purple-500 hover:bg-purple-600 text-white text-sm rounded"
+//                 >
+//                   Start Upload
+//                 </button>
+//               )}
+//               {isProcessing && (
+//                 <>
+//                   {!isPaused ? (
+//                     <button onClick={pauseProcessing} className="px-3 py-1 bg-yellow-500 text-white text-sm rounded">
+//                       Pause
+//                     </button>
+//                   ) : (
+//                     <button onClick={resumeProcessing} className="px-3 py-1 bg-green-500 text-white text-sm rounded">
+//                       Resume
+//                     </button>
+//                   )}
+//                   <button onClick={stopProcessing} className="px-3 py-1 bg-red-500 text-white text-sm rounded">
+//                     Stop
+//                   </button>
+//                 </>
+//               )}
+//             </div>
+//           </div>
+          
+//           {/* Progress bar */}
+//           {isProcessing && currentProcessingIndex !== null && (
+//             <div className="w-full bg-gray-700 rounded-full h-2">
+//               <div 
+//                 className="bg-purple-500 h-2 rounded-full transition-all"
+//                 style={{ width: `${((currentProcessingIndex + 1) / chunkStates.length) * 100}%` }}
+//               />
+//             </div>
+//           )}
+          
+//           {/* Chunk list */}
+//           <div className="space-y-1 max-h-64 overflow-y-auto">
+//             {chunkStates.map((state) => (
+//               <div key={state.chunkIndex} className={`flex items-center justify-between text-xs p-2 rounded ${
+//                 state.status === 'success' ? 'bg-green-900 bg-opacity-30' :
+//                 state.status === 'failed' ? 'bg-red-900 bg-opacity-30' :
+//                 state.status === 'uploading' ? 'bg-blue-900 bg-opacity-30' :
+//                 'bg-gray-700'
+//               }`}>
+//                 <span className="text-gray-300">Chunk {state.chunkIndex + 1}</span>
+//                 <div className="flex items-center gap-2">
+//                   {state.status === 'success' && state.txid && (
+//                     <a 
+//                       href={`https://${network === 'testnet' ? 'test.' : ''}whatsonchain.com/tx/${state.txid}`}
+//                       target="_blank"
+//                       rel="noopener noreferrer"
+//                       className="text-green-400 hover:text-green-300"
+//                     >
+//                       {state.txid.substring(0, 8)}...
+//                     </a>
+//                   )}
+//                   {state.status === 'failed' && (
+//                     <button
+//                       onClick={() => uploadChunk(state.chunkIndex)}
+//                       className="px-2 py-1 bg-red-500 text-white text-xs rounded"
+//                       disabled={isProcessing}
+//                     >
+//                       Retry
+//                     </button>
+//                   )}
+//                   {state.status === 'pending' && processingMode === 'manual' && (
+//                     <button
+//                       onClick={() => uploadChunk(state.chunkIndex)}
+//                       className="px-2 py-1 bg-gray-600 text-white text-xs rounded"
+//                       disabled={isProcessing}
+//                     >
+//                       Upload
+//                     </button>
+//                   )}
+//                 </div>
+//               </div>
+//             ))}
+//           </div>
+//         </div>
+//       )}
+
+//       {/* Create BCAT button */}
+//       {chunkStates.length > 0 && allChunksComplete && (
+//         <button
+//           onClick={createLargeProfileOrdinal}
+//           disabled={loading}
+//           className="w-full py-3 px-6 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-medium rounded-lg hover:from-green-600 hover:to-emerald-600 transition-all disabled:opacity-50"
+//         >
+//           {loading ? 'Creating BCAT Reference...' : 'Create Property BCAT Reference'}
+//         </button>
+//       )}
+//     </div>
+//   );
+// };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -15,7 +15,7 @@ import { useTabs } from "../../hooks/use-tabs";
 import { Framer } from "../../lib/framercard";
 import { motion } from 'framer-motion'; 
 
-// Icons
+// Icons PropertySheet
 import { LuBedSingle, LuBath, LuBedDouble } from "react-icons/lu";
 import {
   MdKingBed,
