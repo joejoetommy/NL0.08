@@ -566,6 +566,8 @@ const WallT5: React.FC = () => {
           setStatus={setStatus}
           setLastTxid={setLastTxid}
           setLastTransactionTime={setLastTransactionTime}
+          blogKeyHistory={blogKeyHistory}
+          getKeySegmentForLevel={getKeySegmentForLevel}
         />
       </div>
       
@@ -615,6 +617,19 @@ const WallT5: React.FC = () => {
 };
 
 export default WallT5;
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

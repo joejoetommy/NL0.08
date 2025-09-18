@@ -595,7 +595,12 @@ export const CreateInscription: React.FC<CreateInscriptionProps> = ({ network })
                       </div>
                     )}
                   </div>
-                ) : (
+                ) : 
+                
+                
+                
+                
+                (
                   // Non-encrypted preview  
                   <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg">
                     <p className="text-sm text-gray-400 mb-2">Data Preview (Unencrypted)</p>

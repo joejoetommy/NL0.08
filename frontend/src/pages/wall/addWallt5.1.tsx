@@ -4,6 +4,7 @@ import { UTXOManager } from '../../components/wallet2/utils/blockchain';
 import { BroadcastService } from '../../components/wallet2/services/BroadcastService';
 import { createInscriptionScript } from '../../components/wallet2/inscriptions/utils/inscriptionCreator';
 import { BCATViewer } from '../../components/wallet2/inscriptions/components/BCATViewer';
+import { BlogEncryption, EncryptionLevel, getEncryptionLevelColor, getEncryptionLevelLabel } from '../../components/wallet2/inscriptions/utils/BlogEncryption';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "../../components/ui/sheet";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -26,6 +27,8 @@ interface CreateLargeProfileInscriptionProps {
   setStatus: (status: { type: 'success' | 'error' | 'info' | null; message: string }) => void;
   setLastTxid: (txid: string) => void;
   setLastTransactionTime: (time: number) => void;
+  blogKeyHistory?: any;
+  getKeySegmentForLevel?: (level: number) => string | null;
 }
 
 interface ChunkUploadState {
@@ -49,16 +52,19 @@ interface FormData {
  contactDetails: string;
 }
 
-// Alert Dialog Component - Property Creation
+// Alert Dialog Component with Encryption
 const AlertDialogDemo: React.FC<{
  totalSizeMb: number;
  handleImageChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
  handleImageRemove: () => void;
  image: string | null;
- handleSubmit: (title: string, description: string) => void;
-}> = ({ totalSizeMb, handleImageChange, handleImageRemove, image, handleSubmit }) => {
+ handleSubmit: (title: string, description: string, encryptionLevel: number) => void;
+ blogKeyHistory: any;
+}> = ({ totalSizeMb, handleImageChange, handleImageRemove, image, handleSubmit, blogKeyHistory }) => {
  const [title, setTitle] = useState<string>('');
  const [description, setDescription] = useState<string>('');
+ const [encryptionLevel, setEncryptionLevel] = useState<EncryptionLevel>(0);
+ const [showEncryptionOptions, setShowEncryptionOptions] = useState(false);
 
  const isFormValid = title.trim() !== '' && description.trim() !== '' && image !== null;
 
@@ -69,7 +75,7 @@ const AlertDialogDemo: React.FC<{
          Create BCAT Property
        </Button>
      </AlertDialogTrigger>
-     <AlertDialogContent>
+     <AlertDialogContent className="max-w-2xl">
        <AlertDialogHeader>
          <AlertDialogTitle>Property Token View</AlertDialogTitle>
          <AlertDialogDescription>
@@ -98,15 +104,82 @@ const AlertDialogDemo: React.FC<{
                <Input placeholder='Property Title...' type="text" id="title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={36} required />
                <textarea placeholder='Property Description...' id="description" value={description} onChange={(e) => setDescription(e.target.value)} className="resize-none rounded-md border px-3 py-1" maxLength={96} rows={4} required />
              </div>
+
+             {/* Encryption Options */}
+             {blogKeyHistory?.current && (
+               <div className="mt-3 p-3 bg-gray-800 rounded-lg">
+                 <div className="flex items-center justify-between mb-2">
+                   <label className="text-sm font-medium text-gray-300">
+                     🔐 Encryption Options
+                   </label>
+                   <button
+                     type="button"
+                     onClick={() => setShowEncryptionOptions(!showEncryptionOptions)}
+                     className="text-xs text-purple-400 hover:text-purple-300"
+                   >
+                     {showEncryptionOptions ? 'Hide' : 'Configure'}
+                   </button>
+                 </div>
+                 
+                 {showEncryptionOptions && (
+                   <div className="space-y-2">
+                     <p className="text-xs text-gray-400">
+                       Encrypt property data with your blog key. Only holders with the appropriate access level can decrypt.
+                     </p>
+                     <div className="grid grid-cols-3 gap-2">
+                       {[0, 1, 2, 3, 4, 5].map((level) => (
+                         <button
+                           key={level}
+                           type="button"
+                           onClick={() => setEncryptionLevel(level as EncryptionLevel)}
+                           className={`px-3 py-2 rounded text-xs font-medium transition-all ${
+                             encryptionLevel === level
+                               ? `bg-${getEncryptionLevelColor(level as EncryptionLevel)}-600 text-white`
+                               : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                           }`}
+                           style={encryptionLevel === level ? {
+                             backgroundColor: {
+                               0: '#6B7280',
+                               1: '#F59E0B',
+                               2: '#EAB308',
+                               3: '#6366F1',
+                               4: '#A855F7',
+                               5: '#EF4444'
+                             }[level]
+                           } : {}}
+                         >
+                           {level === 0 ? '🔓 None' : `🔒 Level ${level}`}
+                         </button>
+                       ))}
+                     </div>
+                     {encryptionLevel > 0 && (
+                       <div className="mt-2 p-2 bg-indigo-900 bg-opacity-30 rounded border border-indigo-700">
+                         <p className="text-xs text-indigo-300">
+                           <span className="font-medium">{getEncryptionLevelLabel(encryptionLevel)}</span>
+                           <br />
+                           Data will be encrypted before chunking. Only key holders with level {encryptionLevel} access or higher can decrypt.
+                         </p>
+                       </div>
+                     )}
+                   </div>
+                 )}
+                 
+                 {!showEncryptionOptions && (
+                   <p className="text-xs text-gray-400">
+                     Current: {encryptionLevel === 0 ? '🔓 No encryption' : `🔒 Level ${encryptionLevel} - ${getEncryptionLevelLabel(encryptionLevel)}`}
+                   </p>
+                 )}
+               </div>
+             )}
            </form>
            <br />
-           Total data size: {totalSizeMb} MB
+           Total data size: {totalSizeMb} MB {encryptionLevel > 0 && '(will be encrypted)'}
          </AlertDialogDescription>
        </AlertDialogHeader>
        <AlertDialogFooter>
          <AlertDialogCancel>Cancel</AlertDialogCancel>
-         <AlertDialogAction onClick={() => handleSubmit(title, description)} disabled={!isFormValid}>
-           Create BCAT {totalSizeMb} MB
+         <AlertDialogAction onClick={() => handleSubmit(title, description, encryptionLevel)} disabled={!isFormValid}>
+           {encryptionLevel > 0 ? `🔒 Create Encrypted BCAT ${totalSizeMb} MB` : `Create BCAT ${totalSizeMb} MB`}
          </AlertDialogAction>
        </AlertDialogFooter>
      </AlertDialogContent>
@@ -143,7 +216,9 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
  lastTransactionTime,
  setStatus,
  setLastTxid,
- setLastTransactionTime
+ setLastTransactionTime,
+ blogKeyHistory,
+ getKeySegmentForLevel
 }) => {
  const [activeTab, setActiveTab] = useState<'create' | 'view'>('create');
  const [loading, setLoading] = useState(false);
@@ -152,6 +227,10 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
  const [largeProfileFile, setLargeProfileFile] = useState<File | null>(null);
  const [largeProfileThumbnail, setLargeProfileThumbnail] = useState<string>('');
  const [usePropertyForm, setUsePropertyForm] = useState(true); // Default to property form
+ 
+ // Encryption state
+ const [selectedEncryptionLevel, setSelectedEncryptionLevel] = useState<EncryptionLevel>(0);
+ const [isEncrypting, setIsEncrypting] = useState(false);
  
  // Chunk management
  const [chunkSizeMB, setChunkSizeMB] = useState<number>(2.0);
@@ -570,15 +649,57 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
    return chunks;
  };
 
- // Process form submission from alert dialog
- const handleFinalSubmit = async (title: string, description: string) => {
+ // Process form submission from alert dialog with encryption
+ const handleFinalSubmit = async (title: string, description: string, encryptionLevel: number) => {
    setAlertDialogTitle(title);
    setAlertDialogDescription(description);
+   setSelectedEncryptionLevel(encryptionLevel as EncryptionLevel);
    
-   setStatus({ type: 'info', message: 'Preparing property data for BCAT...' });
+   setStatus({ type: 'info', message: encryptionLevel > 0 ? 'Encrypting and preparing property data for BCAT...' : 'Preparing property data for BCAT...' });
    
    try {
-     const allData = await prepareFilesForBCAT();
+     setIsEncrypting(encryptionLevel > 0);
+     
+     // Prepare the property data
+     let allData = await prepareFilesForBCAT();
+     
+     // Encrypt if encryption level is selected
+     if (encryptionLevel > 0 && blogKeyHistory?.current && getKeySegmentForLevel) {
+       const keySegment = getKeySegmentForLevel(encryptionLevel);
+       if (!keySegment) {
+         throw new Error(`No key segment available for encryption level ${encryptionLevel}`);
+       }
+       
+       setStatus({ type: 'info', message: `Encrypting with level ${encryptionLevel} (${getEncryptionLevelLabel(encryptionLevel)})...` });
+       
+       // Encrypt the entire data before chunking
+       const { encryptedData, metadata } = await BlogEncryption.prepareEncryptedInscription(
+         allData,
+         encryptionLevel,
+         keySegment
+       );
+       
+       // Create encrypted wrapper
+       const wrapper = {
+         encrypted: true,
+         encryptionLevel: encryptionLevel,
+         originalType: 'property',
+         data: encryptedData,
+         metadata: metadata,
+         propertyTitle: title,
+         propertyDescription: description
+       };
+       
+       // Convert wrapper to bytes for chunking
+       const encryptedJson = JSON.stringify(wrapper);
+       allData = new TextEncoder().encode(encryptedJson);
+       
+       setStatus({ type: 'info', message: `Data encrypted successfully. Size: ${(allData.length / (1024 * 1024)).toFixed(2)}MB` });
+     }
+     
+     setIsEncrypting(false);
+     
+     // Chunk the data (encrypted or not)
      const chunks = chunkData(allData, chunkSizeMB);
      const newChunkStates: ChunkUploadState[] = chunks.map((chunk, index) => ({
        chunkIndex: index,
@@ -591,12 +712,17 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
      setChunkStates(newChunkStates);
      setShowSheet(false);
      
+     const statusMessage = encryptionLevel > 0 
+       ? `🔒 Encrypted property data prepared: ${(allData.length / (1024 * 1024)).toFixed(2)}MB split into ${chunks.length} chunks of ${chunkSizeMB}MB each.`
+       : `Property data prepared: ${(allData.length / (1024 * 1024)).toFixed(2)}MB split into ${chunks.length} chunks of ${chunkSizeMB}MB each.`;
+     
      setStatus({ 
        type: 'info', 
-       message: `Property data prepared: ${(allData.length / (1024 * 1024)).toFixed(2)}MB split into ${chunks.length} chunks of ${chunkSizeMB}MB each.` 
+       message: statusMessage
      });
    } catch (error) {
      console.error('Error preparing BCAT data:', error);
+     setIsEncrypting(false);
      setStatus({ 
        type: 'error', 
        message: error instanceof Error ? error.message : 'Failed to prepare data' 
@@ -1002,6 +1128,8 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
          description: alertDialogDescription,
          propertyName: formData.propertyName,
          type: 'property',
+         encrypted: selectedEncryptionLevel > 0,
+         encryptionLevel: selectedEncryptionLevel,
          chunks: chunkTxIds.length,
          created: new Date().toISOString()
        };
@@ -1146,6 +1274,7 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
      if (result.success) {
        setLastTxid(result.txid!);
        setLastTransactionTime(Date.now());
+       setLastBCATTxid(result.txid!); // Store the BCAT transaction ID
        
        const successMessage = usePropertyForm 
          ? `Property BCAT created successfully!\nMain TX: ${result.txid}\nProperty: "${alertDialogTitle}"\nChunks: ${chunkTxIds.length}`
@@ -1155,6 +1284,11 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
          type: 'success', 
          message: successMessage 
        });
+       
+       // Clear the success message after 30 seconds
+       setTimeout(() => {
+         setLastBCATTxid('');
+       }, 30000);
        
        // Clear form
        if (usePropertyForm) {
@@ -1173,6 +1307,8 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
          setFacilitiesPhotos([]);
          setProfileImage(null);
          setAlertDialogImage(null);
+         setAlertDialogTitle('');
+         setAlertDialogDescription('');
        } else {
          setLargeProfileFile(null);
          setLargeProfileThumbnail('');
@@ -1195,9 +1331,26 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
 
  const allChunksComplete = getAllChunksComplete();
 
- // Main render - simplified to focus on property form
+ const [lastBCATTxid, setLastBCATTxid] = useState<string>('');
+
+ // Main render - with all features from the original file
  return (
    <div className="space-y-4">
+     {/* Show success message with transaction link if BCAT was created */}
+     {lastBCATTxid && (
+       <div className="p-4 bg-green-900 bg-opacity-30 border border-green-700 rounded-lg">
+         <p className="text-green-300 mb-2">✅ BCAT Property Created Successfully!</p>
+         <a 
+           href={`https://${network === 'testnet' ? 'test.' : ''}whatsonchain.com/tx/${lastBCATTxid}`}
+           target="_blank"
+           rel="noopener noreferrer"
+           className="text-green-400 hover:text-green-300 underline"
+         >
+           View Transaction on WhatsOnChain →
+         </a>
+       </div>
+     )}
+
      {/* Display only Create Property mode */}
      {!chunkStates.length && (
        <Sheet open={showSheet} onOpenChange={setShowSheet}>
@@ -1227,12 +1380,14 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
              <CounterInput id="numberOfSingleBeds" label="Single beds" value={numberOfSingleBeds} setValue={setNumberOfSingleBeds} />
              <CounterInput id="numberOfQueenBeds" label="Queen beds" value={numberOfQueenBeds} setValue={setNumberOfQueenBeds} />
              <CounterInput id="numberOfKingBeds" label="King beds" value={numberOfKingBeds} setValue={setNumberOfKingBeds} />
+             <CounterInput id="numberOfKidBeds" label="Kid beds" value={numberOfKidBeds} setValue={setNumberOfKidBeds} />
+             <CounterInput id="numberOfTufanBeds" label="Tufan beds" value={numberOfTufanBeds} setValue={setNumberOfTufanBeds} />
 
-             {/* Room Types */}
+             {/* Hotel Room for Occupants */}
              <div className="grid gap-2">
-               <Label>Hotel Room Type</Label>
+               <Label>Hotel room for occupants</Label>
                <RadioGroup value={hotelRoomForOccupants} onValueChange={setHotelRoomForOccupants}>
-                 {['Single Room', 'Twin Room', 'Double Room', 'Triple Room'].map(option => (
+                 {['Single Room', 'Twin Room', 'Double Room', 'Triple Room', 'Quadruple Room'].map(option => (
                    <div key={option} className="flex items-center space-x-2">
                      <RadioGroupItem value={option} id={option} />
                      <Label htmlFor={option}>{option}</Label>
@@ -1241,10 +1396,49 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
                </RadioGroup>
              </div>
 
-             {/* Facilities */}
+             {/* Hotel Room Bed Type */}
+             <div className="grid gap-2">
+               <Label>Hotel room bed type</Label>
+               <RadioGroup value={hotelRoomBedType} onValueChange={setHotelRoomBedType}>
+                 {['Single', 'Queen Room', 'King Room', 'Hollywood Twin Room'].map(option => (
+                   <div key={option} className="flex items-center space-x-2">
+                     <RadioGroupItem value={option} id={`bed-${option}`} />
+                     <Label htmlFor={`bed-${option}`}>{option}</Label>
+                   </div>
+                 ))}
+               </RadioGroup>
+             </div>
+
+             {/* Arrangement and Facilities */}
+             <div className="grid gap-2">
+               <Label>Arrangement and Facilities</Label>
+               <RadioGroup value={arrangementAndFacilities} onValueChange={setArrangementAndFacilities}>
+                 {['Studio Room', 'Duplex Room', 'Deluxe Room', 'Adjoining Room', 'Apartment-Style Room'].map(option => (
+                   <div key={option} className="flex items-center space-x-2">
+                     <RadioGroupItem value={option} id={`arr-${option}`} />
+                     <Label htmlFor={`arr-${option}`}>{option}</Label>
+                   </div>
+                 ))}
+               </RadioGroup>
+             </div>
+
+             {/* Other Types of Hotel Rooms */}
+             <div className="grid gap-2">
+               <Label>Other types of hotel Rooms</Label>
+               <RadioGroup value={otherTypesOfHotelRooms} onValueChange={setOtherTypesOfHotelRooms}>
+                 {['Suite', 'Junior Suite', 'Presidential Suite', 'Penthouse Suite', 'Cabana', 'Villa'].map(option => (
+                   <div key={option} className="flex items-center space-x-2">
+                     <RadioGroupItem value={option} id={`other-${option}`} />
+                     <Label htmlFor={`other-${option}`}>{option}</Label>
+                   </div>
+                 ))}
+               </RadioGroup>
+             </div>
+
+             {/* Hotel Room Facilities */}
              <div className="grid gap-2">
                <Label>Hotel Room Facilities</Label>
-               {['Free WiFi', 'Mini Bar', 'Coffee maker'].map(option => (
+               {['Shampoo', 'Conditioner', 'Lotion', 'Coffee maker', 'Mini Bar', 'Free WiFi'].map(option => (
                  <div key={option} className="flex items-center space-x-2">
                    <Checkbox
                      checked={hotelRoomFacilities.includes(option)}
@@ -1255,7 +1449,61 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
                ))}
              </div>
 
-             {/* Description fields */}
+             {/* Reception Details */}
+             <div className="grid gap-2">
+               <Label htmlFor="receptionDetails">Reception Details</Label>
+               <textarea
+                 id="receptionDetails"
+                 placeholder="Reception details"
+                 value={formData.receptionDetails}
+                 onChange={handleChange}
+                 className="resize-none w-full rounded-md border px-3 py-1"
+                 rows={3}
+                 required
+               />
+             </div>
+
+             {/* Gym or Fitness */}
+             <div className="grid gap-2">
+               <Label>Gym or Fitness</Label>
+               <RadioGroup value={gymOrFitness} onValueChange={setGymOrFitness}>
+                 {['Yes', 'No'].map(option => (
+                   <div key={option} className="flex items-center space-x-2">
+                     <RadioGroupItem value={option} id={`gym-${option}`} />
+                     <Label htmlFor={`gym-${option}`}>{option}</Label>
+                   </div>
+                 ))}
+               </RadioGroup>
+             </div>
+
+             {/* Dedicated Workstation */}
+             <div className="grid gap-2">
+               <Label>Dedicated Workstation</Label>
+               <RadioGroup value={dedicatedWorkstation} onValueChange={setDedicatedWorkstation}>
+                 {['Yes', 'No'].map(option => (
+                   <div key={option} className="flex items-center space-x-2">
+                     <RadioGroupItem value={option} id={`workstation-${option}`} />
+                     <Label htmlFor={`workstation-${option}`}>{option}</Label>
+                   </div>
+                 ))}
+               </RadioGroup>
+             </div>
+
+             {/* Spa Facilities */}
+             <div className="grid gap-2">
+               <Label>Spa Facilities</Label>
+               {['Sauna', 'Steam', 'Massage', 'Yoga', 'Hot-tub', 'Pool'].map(option => (
+                 <div key={option} className="flex items-center space-x-2">
+                   <Checkbox
+                     checked={spaFacilities.includes(option)}
+                     onCheckedChange={() => handleMultiSelectChange(setSpaFacilities, option)}
+                   />
+                   <Label>{option}</Label>
+                 </div>
+               ))}
+             </div>
+
+             {/* Hotel Room Description */}
              <div className="grid gap-2">
                <Label htmlFor="hotelRoomDescription">Hotel Room Description</Label>
                <textarea
@@ -1269,15 +1517,228 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
                />
              </div>
 
-             {/* Host Info */}
+             {/* General */}
+             <div className="grid gap-2">
+               <Label>General</Label>
+               {['Air Conditioning', 'Heating', 'Flat screen TV', 'Balcony', 'Garden view', 'Safe'].map(option => (
+                 <div key={option} className="flex items-center space-x-2">
+                   <Checkbox
+                     checked={general.includes(option)}
+                     onCheckedChange={() => handleMultiSelectChange(setGeneral, option)}
+                   />
+                   <Label>{option}</Label>
+                 </div>
+               ))}
+             </div>
+
+             {/* Additional Hotel Features */}
+             <div className="grid gap-2">
+               <Label htmlFor="additionalHotelFeatures">Additional Hotel Features</Label>
+               <textarea
+                 id="additionalHotelFeatures"
+                 placeholder="Additional features..."
+                 value={formData.additionalHotelFeatures}
+                 onChange={handleChange}
+                 className="resize-none w-full rounded-md border px-3 py-1"
+                 rows={3}
+               />
+             </div>
+
+             {/* Rules */}
+             <div className="grid gap-2">
+               <Label>Rules</Label>
+               {Object.entries(rules).filter(([key]) => key !== 'additionalRules').map(([key, value]) => (
+                 <RadioGroup key={key} value={value} onValueChange={(newValue) => setRules(prev => ({ ...prev, [key]: newValue }))}>
+                   <div className="flex items-center justify-between">
+                     <Label>{key.replace('allowed', ' allowed').charAt(0).toUpperCase() + key.replace('allowed', ' allowed').slice(1)}</Label>
+                     <div className="flex items-center space-x-4">
+                       <div className="flex items-center space-x-2">
+                         <RadioGroupItem value="Yes" id={`${key}-yes`} />
+                         <Label htmlFor={`${key}-yes`}>Yes</Label>
+                       </div>
+                       <div className="flex items-center space-x-2">
+                         <RadioGroupItem value="No" id={`${key}-no`} />
+                         <Label htmlFor={`${key}-no`}>No</Label>
+                       </div>
+                     </div>
+                   </div>
+                 </RadioGroup>
+               ))}
+               <textarea
+                 placeholder="Additional rules..."
+                 value={rules.additionalRules}
+                 onChange={(e) => setRules(prev => ({ ...prev, additionalRules: e.target.value }))}
+                 className="resize-none w-full rounded-md border px-3 py-1"
+                 rows={2}
+               />
+             </div>
+
+             {/* Check-in Times */}
+             <div className="grid gap-2">
+               <Label>Check-in Times</Label>
+               <div className="flex space-x-2">
+                 <TimePicker 
+                   value={checkInFrom ? moment(checkInFrom, 'HH:mm') : null} 
+                   onChange={(_, timeString) => setCheckInFrom(timeString as string)} 
+                   format="HH:mm"
+                   placeholder="From"
+                 />
+                 <TimePicker 
+                   value={checkInUntil ? moment(checkInUntil, 'HH:mm') : null} 
+                   onChange={(_, timeString) => setCheckInUntil(timeString as string)} 
+                   format="HH:mm"
+                   placeholder="Until"
+                 />
+               </div>
+             </div>
+
+             {/* Check-out Times */}
+             <div className="grid gap-2">
+               <Label>Check-out Times</Label>
+               <div className="flex space-x-2">
+                 <TimePicker 
+                   value={checkOutFrom ? moment(checkOutFrom, 'HH:mm') : null} 
+                   onChange={(_, timeString) => setCheckOutFrom(timeString as string)} 
+                   format="HH:mm"
+                   placeholder="From"
+                 />
+                 <TimePicker 
+                   value={checkOutUntil ? moment(checkOutUntil, 'HH:mm') : null} 
+                   onChange={(_, timeString) => setCheckOutUntil(timeString as string)} 
+                   format="HH:mm"
+                   placeholder="Until"
+                 />
+               </div>
+             </div>
+
+             {/* Image Uploads */}
+             <div className="grid gap-2">
+               <Label>Room Photos</Label>
+               <div className="border-dashed border-2 border-gray-300 p-2 rounded-md text-center cursor-pointer h-24" onClick={() => document.getElementById('roomPhotos')?.click()}>
+                 <input id="roomPhotos" type="file" accept="image/*" multiple onChange={handleFileUpload(setRoomPhotos)} className="hidden" />
+                 <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
+                 <p className="text-gray-600 text-xs">Click to select room photos</p>
+               </div>
+               {roomPhotos.length > 0 && (
+                 <div className="grid grid-cols-3 gap-2">
+                   {roomPhotos.map((photo, index) => (
+                     <div key={index} className="relative">
+                       <img src={URL.createObjectURL(photo)} alt={`Room ${index}`} className="w-full h-20 object-cover rounded" />
+                       <button onClick={() => handleImageRemove(setRoomPhotos, index)} className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs">×</button>
+                     </div>
+                   ))}
+                 </div>
+               )}
+             </div>
+
+             <div className="grid gap-2">
+               <Label>Hotel Photos</Label>
+               <div className="border-dashed border-2 border-gray-300 p-2 rounded-md text-center cursor-pointer h-24" onClick={() => document.getElementById('hotelPhotos')?.click()}>
+                 <input id="hotelPhotos" type="file" accept="image/*" multiple onChange={handleFileUpload(setHotelPhotos)} className="hidden" />
+                 <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
+                 <p className="text-gray-600 text-xs">Click to select hotel photos</p>
+               </div>
+               {hotelPhotos.length > 0 && (
+                 <div className="grid grid-cols-3 gap-2">
+                   {hotelPhotos.map((photo, index) => (
+                     <div key={index} className="relative">
+                       <img src={URL.createObjectURL(photo)} alt={`Hotel ${index}`} className="w-full h-20 object-cover rounded" />
+                       <button onClick={() => handleImageRemove(setHotelPhotos, index)} className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs">×</button>
+                     </div>
+                   ))}
+                 </div>
+               )}
+             </div>
+
+             <div className="grid gap-2">
+               <Label>Facilities Photos</Label>
+               <div className="border-dashed border-2 border-gray-300 p-2 rounded-md text-center cursor-pointer h-24" onClick={() => document.getElementById('facilitiesPhotos')?.click()}>
+                 <input id="facilitiesPhotos" type="file" accept="image/*" multiple onChange={handleFileUpload(setFacilitiesPhotos)} className="hidden" />
+                 <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
+                 <p className="text-gray-600 text-xs">Click to select facilities photos</p>
+               </div>
+               {facilitiesPhotos.length > 0 && (
+                 <div className="grid grid-cols-3 gap-2">
+                   {facilitiesPhotos.map((photo, index) => (
+                     <div key={index} className="relative">
+                       <img src={URL.createObjectURL(photo)} alt={`Facility ${index}`} className="w-full h-20 object-cover rounded" />
+                       <button onClick={() => handleImageRemove(setFacilitiesPhotos, index)} className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs">×</button>
+                     </div>
+                   ))}
+                 </div>
+               )}
+             </div>
+
+             {/* Cancellation Policy */}
+             <div className="grid gap-2">
+               <Label htmlFor="cancellationPolicy">Cancellation Policy</Label>
+               <textarea
+                 id="cancellationPolicy"
+                 placeholder="Cancellation policy details..."
+                 value={formData.cancellationPolicy}
+                 onChange={handleChange}
+                 className="resize-none w-full rounded-md border px-3 py-1"
+                 rows={3}
+                 required
+               />
+             </div>
+
+             {/* Your Role */}
+             <div className="grid gap-2">
+               <Label htmlFor="yourRole">Your Role</Label>
+               <Input id="yourRole" placeholder="Your role with the property" value={formData.yourRole} onChange={handleChange} required />
+             </div>
+
+             {/* Property Host Profile */}
+             <div className="grid gap-2">
+               <Label>Property Host Profile</Label>
+               <div className="border-dashed border-2 border-gray-300 p-4 rounded-md text-center cursor-pointer" onClick={() => document.getElementById('profileImage')?.click()}>
+                 <input id="profileImage" type="file" accept="image/*" onChange={handleProfileImageChange} className="hidden" />
+                 {profileImage ? (
+                   <div className="relative inline-block">
+                     <img src={URL.createObjectURL(profileImage)} alt="Profile" className="w-24 h-24 object-cover rounded-full" />
+                     <button onClick={(e) => { e.stopPropagation(); handleProfileImageRemove(); }} className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-6 h-6 text-xs">×</button>
+                   </div>
+                 ) : (
+                   <>
+                     <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
+                     <p className="text-gray-600 text-xs">Upload host profile image</p>
+                   </>
+                 )}
+               </div>
+             </div>
+
+             {/* Host's Name */}
              <div className="grid gap-2">
                <Label htmlFor="sellersName">Host's Name</Label>
                <Input id="sellersName" placeholder="Host's name" value={formData.sellersName} onChange={handleChange} required />
              </div>
 
+             {/* Contact Details */}
              <div className="grid gap-2">
                <Label htmlFor="contactDetails">Contact Details</Label>
                <Input id="contactDetails" placeholder="Contact details" value={formData.contactDetails} onChange={handleChange} required />
+             </div>
+
+             {/* Host Languages */}
+             <div className="grid gap-2">
+               <Label>Host Languages</Label>
+               {languages.slice(0, showMore ? languages.length : 4).map((language) => (
+                 <div key={language} className="flex items-center space-x-2">
+                   <Checkbox
+                     checked={selectedLanguages.includes(language)}
+                     onCheckedChange={() => handleLanguageChange(language)}
+                   />
+                   <Label>{language}</Label>
+                 </div>
+               ))}
+               <button
+                 type="button"
+                 onClick={() => setShowMore(!showMore)}
+                 className="text-blue-600 text-sm text-left"
+               >
+                 {showMore ? "Show less" : "Show more"}
+               </button>
              </div>
 
              <p className="text-sm text-gray-600">Total size: {totalSizeMb} MB</p>
@@ -1289,11 +1750,70 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
                  handleImageRemove={handleAlertDialogImageRemove}
                  image={alertDialogImage ? URL.createObjectURL(alertDialogImage) : null}
                  handleSubmit={handleFinalSubmit}
+                 blogKeyHistory={blogKeyHistory}
                />
              </SheetFooter>
            </form>
          </SheetContent>
        </Sheet>
+     )}
+
+     {/* Chunk Configuration */}
+     {chunkStates.length > 0 && (
+       <div className="p-3 bg-yellow-900 bg-opacity-30 rounded-lg border border-yellow-700">
+         <p className="text-sm text-yellow-300">
+           📦 {usePropertyForm ? 'Property data' : 'File'} ready for BCAT upload
+         </p>
+         <div className="flex items-center gap-2 mt-2">
+           <label className="text-xs text-yellow-200">Chunk size:</label>
+           <input
+             type="number"
+             min="0.1"
+             max="10"
+             step="0.1"
+             value={customChunkSize}
+             onChange={(e) => handleChunkSizeChange(e.target.value)}
+             className="px-2 py-1 w-20 bg-gray-800 border border-gray-600 rounded text-white text-xs"
+             disabled={isProcessing}
+           />
+           <span className="text-xs text-yellow-200">MB per chunk</span>
+           <button
+             onClick={() => handleChunkSizeChange('2.0')}
+             className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded"
+           >
+             Reset to 2MB
+           </button>
+         </div>
+       </div>
+     )}
+
+     {/* Upload Mode Selection */}
+     {chunkStates.length > 0 && (
+       <div className="p-3 bg-gray-800 rounded-lg">
+         <div className="flex items-center gap-4">
+           <span className="text-sm text-gray-300">Upload Mode:</span>
+           <label className="flex items-center gap-2">
+             <input
+               type="radio"
+               value="sequential"
+               checked={processingMode === 'sequential'}
+               onChange={() => setProcessingMode('sequential')}
+               disabled={isProcessing}
+             />
+             <span className="text-sm text-gray-300">Sequential (Auto)</span>
+           </label>
+           <label className="flex items-center gap-2">
+             <input
+               type="radio"
+               value="manual"
+               checked={processingMode === 'manual'}
+               onChange={() => setProcessingMode('manual')}
+               disabled={isProcessing}
+             />
+             <span className="text-sm text-gray-300">Manual (Individual Control)</span>
+           </label>
+         </div>
+       </div>
      )}
 
      {/* Chunk Upload Status */}
@@ -1305,21 +1825,51 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
              ({chunkStates.filter(s => s.status === 'success').length}/{chunkStates.length} complete)
            </h4>
            <div className="flex gap-2">
-             {!allChunksComplete && !isProcessing && (
-               <button
-                 onClick={processChunksSequentially}
-                 className="px-3 py-1 bg-purple-500 hover:bg-purple-600 text-white text-sm rounded"
-               >
-                 Start Upload
-               </button>
-             )}
-             {isProcessing && (
-               <button
-                 onClick={stopProcessing}
-                 className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded"
-               >
-                 Stop
-               </button>
+             {processingMode === 'sequential' && !allChunksComplete && (
+               <>
+                 {!isProcessing ? (
+                   <button
+                     onClick={processChunksSequentially}
+                     className="px-3 py-1 bg-purple-500 hover:bg-purple-600 text-white text-sm rounded"
+                   >
+                     Start Upload
+                   </button>
+                 ) : (
+                   <>
+                     {!isPaused ? (
+                       <>
+                         <button
+                           onClick={pauseProcessing}
+                           className="px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-white text-sm rounded"
+                         >
+                           Pause
+                         </button>
+                         <button
+                           onClick={stopProcessing}
+                           className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded"
+                         >
+                           Stop
+                         </button>
+                       </>
+                     ) : (
+                       <>
+                         <button
+                           onClick={resumeProcessing}
+                           className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-sm rounded"
+                         >
+                           Resume
+                         </button>
+                         <button
+                           onClick={stopProcessing}
+                           className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded"
+                         >
+                           Stop
+                         </button>
+                       </>
+                     )}
+                   </>
+                 )}
+               </>
              )}
              {allChunksComplete && (
                <span className="px-3 py-1 bg-green-500 text-white text-sm rounded">
@@ -1331,13 +1881,82 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
          
          {/* Progress bar */}
          {isProcessing && currentProcessingIndex !== null && (
-           <div className="w-full bg-gray-700 rounded-full h-2">
-             <div 
-               className="bg-purple-500 h-2 rounded-full transition-all"
-               style={{ width: `${((currentProcessingIndex + 1) / chunkStates.length) * 100}%` }}
-             />
+           <div>
+             <p className="text-sm text-gray-300 mb-2">
+               {isPaused ? 'Paused at' : 'Uploading'} chunk {currentProcessingIndex + 1} of {chunkStates.length}
+             </p>
+             <div className="w-full bg-gray-700 rounded-full h-2">
+               <div 
+                 className="bg-purple-500 h-2 rounded-full transition-all"
+                 style={{ width: `${((currentProcessingIndex + 1) / chunkStates.length) * 100}%` }}
+               />
+             </div>
            </div>
          )}
+         
+         {/* Chunk list */}
+         <div className="space-y-1 max-h-64 overflow-y-auto">
+           {chunkStates.map((state) => (
+             <div 
+               key={state.chunkIndex} 
+               className={`flex items-center justify-between text-xs p-2 rounded ${
+                 state.status === 'success' ? 'bg-green-900 bg-opacity-30' :
+                 state.status === 'failed' ? 'bg-red-900 bg-opacity-30' :
+                 state.status === 'uploading' ? 'bg-blue-900 bg-opacity-30' :
+                 'bg-gray-700'
+               }`}
+             >
+               <span className="text-gray-300 font-medium">
+                 Chunk {state.chunkIndex + 1}
+                 {state.attempts > 0 && ` (Attempts: ${state.attempts})`}
+               </span>
+               <div className="flex items-center gap-2">
+                 {state.status === 'success' && state.txid && (
+                   <a 
+                     href={`https://${network === 'testnet' ? 'test.' : ''}whatsonchain.com/tx/${state.txid}`}
+                     target="_blank"
+                     rel="noopener noreferrer"
+                     className="text-green-400 hover:text-green-300"
+                   >
+                     {state.txid.substring(0, 8)}...
+                   </a>
+                 )}
+                 {state.status === 'failed' && (
+                   <>
+                     <span className="text-red-400" title={state.error}>
+                       {state.error?.includes('timeout') ? 'Timeout' : 
+                        state.error?.includes('mempool') ? 'Conflict' : 'Failed'}
+                     </span>
+                     <button
+                       onClick={() => uploadChunk(state.chunkIndex)}
+                       className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded"
+                       disabled={isProcessing}
+                     >
+                       Retry
+                     </button>
+                   </>
+                 )}
+                 {state.status === 'uploading' && (
+                   <span className="text-blue-400">Uploading...</span>
+                 )}
+                 {state.status === 'pending' && (
+                   <>
+                     <span className="text-gray-400">Pending</span>
+                     {processingMode === 'manual' && (
+                       <button
+                         onClick={() => uploadChunk(state.chunkIndex)}
+                         className="px-2 py-1 bg-gray-600 hover:bg-gray-500 text-white text-xs rounded"
+                         disabled={isProcessing}
+                       >
+                         Upload
+                       </button>
+                     )}
+                   </>
+                 )}
+               </div>
+             </div>
+           ))}
+         </div>
        </div>
      )}
 
@@ -1354,7 +1973,6 @@ export const CreateLargeProfileInscription1: React.FC<CreateLargeProfileInscript
    </div>
  );
 };
-
 
 
 

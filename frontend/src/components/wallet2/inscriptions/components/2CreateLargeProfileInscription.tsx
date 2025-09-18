@@ -107,6 +107,7 @@ const AlertDialogDemo: React.FC<{
          </AlertDialogDescription>
        </AlertDialogHeader>
        <AlertDialogFooter>
+        {/* Place the encryption selector here  */}
          <AlertDialogCancel>Cancel</AlertDialogCancel>
          <AlertDialogAction onClick={() => handleSubmit(title, description)} disabled={!isFormValid}>
            Create BCAT {totalSizeMb} MB
