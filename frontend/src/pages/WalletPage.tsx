@@ -12,8 +12,9 @@
 //   </div>
 // );
 // export default NotificationsPage;
-
 import React, { useState } from 'react';
+import EntryDialog from '../components/EntryDialog';
+import { User } from 'lucide-react';
 
 // import { getProfileData, updateProfileData } from '../components/profile/data/profiledata';
 import Wallet from '../components/wallet/wallet4'; // This is ECDH WORKING
@@ -23,99 +24,103 @@ import WalletApp from '../components/wallet/wallet6';
 // import WalletProfile from '../components/wallet/profilewallet';
 // import mintProfileDataToken from '../components/wallet/profiledatatoken';
 
-  const tabComponents = {
-    Wallet: <Wallet  />,
-    WalletApp: <WalletApp />,
-        // CreateLargeProfileInscription1:               
-        
-        // <CreateLargeProfileInscription1
-                        // keyData={keyData}
-                        // network={network}
-                        // whatsOnChainApiKey={whatsOnChainApiKey}
-                        // currentFeeRate={currentFeeRate}
-                        // balance={balance}
-                        // lastTransactionTime={lastTransactionTime}
-                        // setStatus={setStatus}
-                        // setLastTxid={setLastTxid}
-                        // setLastTransactionTime={setLastTransactionTime}
-                     // />,
-       // WalletProfile: <WalletProfile />,
-  };
+type TabType = 'Wallet' | 'WalletApp';
 
 const WalletPage: React.FC = () => {
- // const profileData = getProfileData();
- const [activeTab, setActiveTab] = useState<TabType>('WalletApp');
+  const [activeTab, setActiveTab] = useState<TabType>('WalletApp');
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  const tabComponents = {
+    Wallet: <Wallet />,
+    WalletApp: <WalletApp />,
+    // CreateLargeProfileInscription1:               
+    
+    // <CreateLargeProfileInscription1
+                    // keyData={keyData}
+                    // network={network}
+                    // whatsOnChainApiKey={whatsOnChainApiKey}
+                    // currentFeeRate={currentFeeRate}
+                    // balance={balance}
+                    // lastTransactionTime={lastTransactionTime}
+                    // setStatus={setStatus}
+                    // setLastTxid={setLastTxid}
+                    // setLastTransactionTime={setLastTransactionTime}
+                 // />,
+   // WalletProfile: <WalletProfile />,
+  };
 
   return (
     <div className="flex flex-col pt-4 sm:ml-[120px] md:ml-[250px] sm:border-r sm:border-zinc-700 pb-20 h-full">
-
-    <div className="sticky top-0 bg-black/80 backdrop-blur-md border-b border-zinc-700 px-4 py-3">
-          <h1 className="text-xl font-bold">Wallet</h1>
+      <div className="sticky top-0 bg-black/80 backdrop-blur-md border-b border-zinc-700 px-4 py-3 flex justify-between items-center">
+        <h1 className="text-xl font-bold">Wallet</h1>
+        <button
+          onClick={() => setDialogOpen(true)}
+          className="p-2 hover:bg-white/10 rounded-full transition-colors"
+        >
+          <User size={24} className="text-gray-400 hover:text-sky-500 transition-colors" />
+        </button>
       </div>
-            {/* <Wallet /> */}
-             <div className="flex w-full">
-                      <button
-                        onClick={() => setActiveTab('Wallet')}
-                        className={`flex-1 py-4 hover:bg-white/10 transition-colors relative ${
-                          activeTab === 'Wallet' ? 'font-bold' : 'text-gray-500'
-                        }`}
-                      >
-                        Wallet
-                        {activeTab === 'Wallet' && (
-                          <div className="absolute bottom-0 left-0 right-0 h-1 bg-sky-500 rounded-full"></div>
-                        )}
-                      </button>
-                                            <button
-                        onClick={() => setActiveTab('WalletApp')}
-                        className={`flex-1 py-4 hover:bg-white/10 transition-colors relative ${
-                          activeTab === 'WalletApp' ? 'font-bold' : 'text-gray-500'
-                        }`}
-                      >
-                        WalletApp
-                        {activeTab === 'WalletApp' && (
-                          <div className="absolute bottom-0 left-0 right-0 h-1 bg-sky-500 rounded-full"></div>
-                        )}
-                      </button>
-                                                                  {/* <button
-                        onClick={() => setActiveTab('CreateLargeProfileInscription1')}
-                        className={`flex-1 py-4 hover:bg-white/10 transition-colors relative ${
-                          activeTab === 'WalletApp' ? 'font-bold' : 'text-gray-500'
-                        }`}
-                      >
-                        CreateLargeProfileInscription1
-                        {activeTab === 'CreateLargeProfileInscription1' && (
-                          <div className="absolute bottom-0 left-0 right-0 h-1 bg-sky-500 rounded-full"></div>
-                        )}
-                      </button> */}
-                                            {/* <button
-                        onClick={() => setActiveTab('WalletProfile')}
-                        className={`flex-1 py-4 hover:bg-white/10 transition-colors relative ${
-                          activeTab === 'WalletProfile' ? 'font-bold' : 'text-gray-500'
-                        }`}
-                      >
-                        WalletProfile
-                        {activeTab === 'WalletProfile' && (
-                          <div className="absolute bottom-0 left-0 right-0 h-1 bg-sky-500 rounded-full"></div>
-                        )}
-                      </button> */}
-                    </div>
-
-
-                  <div className="flex flex-1 h-screen overflow-y-auto">
-                    {tabComponents[activeTab] || null}
-                  </div>
-
+      
+      {/* Tab Navigation */}
+      <div className="flex w-full">
+        <button
+          onClick={() => setActiveTab('Wallet')}
+          className={`flex-1 py-4 hover:bg-white/10 transition-colors relative ${
+            activeTab === 'Wallet' ? 'font-bold' : 'text-gray-500'
+          }`}
+        >
+          Wallet
+          {activeTab === 'Wallet' && (
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-sky-500 rounded-full"></div>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab('WalletApp')}
+          className={`flex-1 py-4 hover:bg-white/10 transition-colors relative ${
+            activeTab === 'WalletApp' ? 'font-bold' : 'text-gray-500'
+          }`}
+        >
+          WalletApp
+          {activeTab === 'WalletApp' && (
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-sky-500 rounded-full"></div>
+          )}
+        </button>
+        {/* <button
+          onClick={() => setActiveTab('CreateLargeProfileInscription1')}
+          className={`flex-1 py-4 hover:bg-white/10 transition-colors relative ${
+            activeTab === 'WalletApp' ? 'font-bold' : 'text-gray-500'
+          }`}
+        >
+          CreateLargeProfileInscription1
+          {activeTab === 'CreateLargeProfileInscription1' && (
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-sky-500 rounded-full"></div>
+          )}
+        </button> */}
+        {/* <button
+          onClick={() => setActiveTab('WalletProfile')}
+          className={`flex-1 py-4 hover:bg-white/10 transition-colors relative ${
+            activeTab === 'WalletProfile' ? 'font-bold' : 'text-gray-500'
+          }`}
+        >
+          WalletProfile
+          {activeTab === 'WalletProfile' && (
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-sky-500 rounded-full"></div>
+          )}
+        </button> */}
       </div>
 
+      {/* EntryDialog */}
+      <EntryDialog 
+        isOpen={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+      />
 
-
-
-
-
-
-    );
-  };
-
+      <div className="flex flex-1 h-screen overflow-y-auto">
+        {tabComponents[activeTab] || null}
+      </div>
+    </div>
+  );
+};
 
 export default WalletPage;
 

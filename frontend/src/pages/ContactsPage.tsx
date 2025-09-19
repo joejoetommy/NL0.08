@@ -4,6 +4,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import NetworkPage from '../components/contacts/Network';
 import { XpubInputDialog } from '../components/contacts/XpubInputDialog'; 
+import EntryDialog from '../components/EntryDialog';
+import { User } from 'lucide-react';
 
 type TabType = 'network' | 'contacts';
 export type SortOption = 'recent' | 'alphabetical' | 'oldest';
@@ -16,6 +18,7 @@ const ExplorePage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('recent');
   const [showSortMenu, setShowSortMenu] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -191,6 +194,15 @@ const ExplorePage: React.FC = () => {
               </div>
             </div>
             
+            {/* User/Profile Button */}
+            <button
+              onClick={() => setDialogOpen(true)}
+              className="p-3 bg-zinc-900 rounded-full hover:bg-zinc-800 transition-colors group"
+              title="Edit Profile"
+            >
+              <User size={20} className="text-gray-500 group-hover:text-white transition-colors" />
+            </button>
+            
             <button
               onClick={() => setShowXpubDialog(true)}
               className="p-3 bg-zinc-900 rounded-full hover:bg-zinc-800 transition-colors group"
@@ -292,6 +304,12 @@ const ExplorePage: React.FC = () => {
         onXpubSubmit={handleXpubSubmit}
       />
 
+      {/* EntryDialog */}
+      <EntryDialog 
+        isOpen={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+      />
+
       <div className="flex flex-1 h-screen overflow-y-auto">
         {tabComponents[activeTab] || null}
       </div>
@@ -300,7 +318,6 @@ const ExplorePage: React.FC = () => {
 };
 
 export default ExplorePage;
-
 
 
 // Orginal proir to the development of the QR scanner

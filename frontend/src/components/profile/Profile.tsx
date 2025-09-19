@@ -2,6 +2,8 @@
 'use client';
 // Home feed
 import React, { useState } from 'react';
+import EntryDialog from '../../components/EntryDialog';
+import { User } from 'lucide-react';
 
 import useScrollingEffect from '../../hooks/use-scroll';
 import { useTabs } from '../../hooks/use-tabs';
@@ -33,7 +35,8 @@ const HomePage = () => {
   const scrollDirection = useScrollingEffect();
   const headerClass =
     scrollDirection === 'up' ? 'translate-y-0' : 'translate-y-[-50%]';
-      const { network } = useWalletStore();
+  const { network } = useWalletStore();
+  const [dialogOpen, setDialogOpen] = useState(false);
 
     
   const [hookProps] = useState({
@@ -44,7 +47,7 @@ const HomePage = () => {
         id: 'Profile',
         displayName: 'Profile',
       },
-            {
+      {
         label: <Icon icon="fluent-mdl2:web-components" width="32" height="32" />,
         children: <WallPage network={network} />,
         id: 'Profile',
@@ -86,13 +89,13 @@ const HomePage = () => {
   const framer = useTabs(hookProps);
 
  
-    // State to hold the currently active tab's display name
-   const [activeTabDisplayName, setActiveTabDisplayName] = useState<string>('displayName');
+  // State to hold the currently active tab's display name
+  const [activeTabDisplayName, setActiveTabDisplayName] = useState<string>('displayName');
   
-    // Handler to update the active tab
-    const handleTabClick = (tab: TabInfo) => {
-      setActiveTabDisplayName(tab.displayName);
-    };
+  // Handler to update the active tab
+  const handleTabClick = (tab: TabInfo) => {
+    setActiveTabDisplayName(tab.displayName);
+  };
     
 
   return (
@@ -100,23 +103,37 @@ const HomePage = () => {
       <div
         className={`flex flex-col border-b border-zinc-700 sticky inset-x-0 pt-2 top-0 z-30 w-full transition-all backdrop-blur-xl  ${headerClass} md:translate-y-0`}
       >
-        <div className="flex justify-between">
-      
-        <span className=" flex px-4 font-bold text-2xl">{framer.selectedTab.displayName}
-        </span>
-            <div className="flex justify-end pr-6" >
-              <Avatar className="flex">
+        <div className="flex justify-between items-center">
+          <span className="flex px-4 font-bold text-2xl">{framer.selectedTab.displayName}</span>
+          
+          <div className="flex items-center gap-3 pr-6">
+            <button
+              onClick={() => setDialogOpen(true)}
+              className="p-2 hover:bg-white/10 rounded-full transition-colors"
+              title="Edit Profile"
+            >
+              <User size={24} className="text-gray-400 hover:text-sky-500 transition-colors" />
+            </button>
+            
+            <Avatar className="flex">
               <AvatarImage src="" alt="@shadcn" />
               <AvatarFallback>NL</AvatarFallback>
-              </Avatar>
-            </div>
+            </Avatar>
+          </div>
         </div>
+        
         <div className="flex flex-row w-full items-center justify-around mt-4">
           <Framer.Tabs {...framer.tabProps} />
         </div>
       </div>
 
-      <div className="pt-10 flex  flex-1 h-screen">
+      {/* EntryDialog */}
+      <EntryDialog 
+        isOpen={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+      />
+
+      <div className="pt-10 flex flex-1 h-screen">
         {framer.selectedTab.children}
       </div>
     </div>
