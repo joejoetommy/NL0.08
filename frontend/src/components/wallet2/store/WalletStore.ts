@@ -1,216 +1,3 @@
-// // src/store/WalletStore.ts
-// import { create } from 'zustand';
-// import { PrivateKey, PublicKey } from '@bsv/sdk';
-
-// // Blog Key Types
-// interface SecureBlogKeys {
-//   tier1: string;
-//   tier2: string;
-//   tier3: string;
-//   tier4: string;
-//   tier5: string;
-// }
-
-// interface BlogKeyData {
-//   keys: SecureBlogKeys;
-//   accessBundles: {
-//     tier1: string[];
-//     tier2: string[];
-//     tier3: string[];
-//     tier4: string[];
-//     tier5: string[];
-//   };
-//   version: string;
-//   generatedAt: number;
-//   label?: string;
-// }
-
-// interface KeyData {
-//   privateKey: PrivateKey | null;
-//   publicKey: PublicKey | null;
-//   privateKeyHex: string;
-//   privateKeyWif: string;
-//   privateKeyBinary: Uint8Array;
-//   publicKeyHex: string;
-//   publicKeyDER: string;
-//   publicKeyRaw: { x: string; y: string };
-//   address: string;
-// }
-
-// interface Balance {
-//   confirmed: number;
-//   unconfirmed: number;
-//   loading: boolean;
-//   error: string | null;
-// }
-
-// interface WalletState {
-//   // Authentication
-//   isAuthenticated: boolean;
-//   hasValidKeys: boolean;
-  
-//   // Wallet Data
-//   network: 'mainnet' | 'testnet';
-//   keyData: KeyData;
-//   balance: Balance;
-//   blogKey: BlogKeyData | null;
-//   contacts: any[];
-  
-//   // Actions
-//   login: () => void;
-//   logout: () => void;
-//   setNetwork: (network: 'mainnet' | 'testnet') => void;
-//   setKeyData: (data: KeyData) => void;
-//   setBalance: (balance: Balance) => void;
-//   setBlogKey: (key: BlogKeyData | null) => void;
-//   updateContactSharedSecrets: (privateKey: PrivateKey) => void;
-//   checkAuthStatus: () => void;
-//   clearWallet: () => void;
-// }
-
-// export const useWalletStore = create<WalletState>((set, get) => ({
-//   // Initial state
-//   isAuthenticated: false,
-//   hasValidKeys: false,
-//   network: 'mainnet',
-//   keyData: {
-//     privateKey: null,
-//     publicKey: null,
-//     privateKeyHex: '',
-//     privateKeyWif: '',
-//     privateKeyBinary: new Uint8Array(),
-//     publicKeyHex: '',
-//     publicKeyDER: '',
-//     publicKeyRaw: { x: '', y: '' },
-//     address: ''
-//   },
-//   balance: {
-//     confirmed: 0,
-//     unconfirmed: 0,
-//     loading: false,
-//     error: null
-//   },
-//   blogKey: null,
-//   contacts: [],
-  
-//   // Actions
-//   login: () => {
-//     const { keyData, blogKey } = get();
-//     const hasValidKeys = keyData.privateKey !== null && blogKey !== null;
-    
-//     if (hasValidKeys) {
-//       set({ isAuthenticated: true, hasValidKeys: true });
-//       localStorage.setItem('isAuthenticated', 'true');
-//       localStorage.setItem('hasValidKeys', 'true');
-//     }
-//   },
-  
-//   logout: () => {
-//     set({
-//       isAuthenticated: false,
-//       hasValidKeys: false,
-//       keyData: {
-//         privateKey: null,
-//         publicKey: null,
-//         privateKeyHex: '',
-//         privateKeyWif: '',
-//         privateKeyBinary: new Uint8Array(),
-//         publicKeyHex: '',
-//         publicKeyDER: '',
-//         publicKeyRaw: { x: '', y: '' },
-//         address: ''
-//       },
-//       balance: {
-//         confirmed: 0,
-//         unconfirmed: 0,
-//         loading: false,
-//         error: null
-//       },
-//       blogKey: null
-//     });
-    
-//     // Clear localStorage
-//     localStorage.removeItem('isAuthenticated');
-//     localStorage.removeItem('hasValidKeys');
-//     localStorage.removeItem('walletData');
-//     localStorage.removeItem('blogKeyMeta');
-//   },
-  
-//   setNetwork: (network) => set({ network }),
-  
-//   setKeyData: (keyData) => {
-//     set({ keyData });
-//     // Check if we should update auth status
-//     const { blogKey } = get();
-//     if (keyData.privateKey && blogKey) {
-//       set({ hasValidKeys: true });
-//     }
-    
-//     // Optionally persist to localStorage (encrypted in production)
-//     try {
-//       const dataToStore = {
-//         address: keyData.address,
-//         publicKeyHex: keyData.publicKeyHex,
-//         // Don't store private key in plain text in production!
-//       };
-//       localStorage.setItem('walletData', JSON.stringify(dataToStore));
-//     } catch (err) {
-//       console.error('Failed to store wallet data:', err);
-//     }
-//   },
-  
-//   setBalance: (balance) => set({ balance }),
-  
-//   setBlogKey: (blogKey) => {
-//     set({ blogKey });
-//     // Check if we should update auth status
-//     const { keyData } = get();
-//     if (keyData.privateKey && blogKey) {
-//       set({ hasValidKeys: true });
-//     }
-    
-//     // Optionally persist blog key info (not the actual keys)
-//     try {
-//       if (blogKey) {
-//         const dataToStore = {
-//           version: blogKey.version,
-//           label: blogKey.label,
-//           generatedAt: blogKey.generatedAt
-//         };
-//         localStorage.setItem('blogKeyMeta', JSON.stringify(dataToStore));
-//       }
-//     } catch (err) {
-//       console.error('Failed to store blog key metadata:', err);
-//     }
-//   },
-  
-//   updateContactSharedSecrets: (privateKey: PrivateKey) => {
-//     // Implement your contact shared secrets logic here
-//     const { contacts } = get();
-//     // Update contacts with new shared secrets based on the private key
-//     console.log('Updating contact shared secrets...');
-//   },
-  
-//   checkAuthStatus: () => {
-//     // Check localStorage for previous auth status
-//     const authStatus = localStorage.getItem('isAuthenticated');
-//     const keysStatus = localStorage.getItem('hasValidKeys');
-    
-//     if (authStatus === 'true' && keysStatus === 'true') {
-//       // Note: In production, you'd want to verify the keys are still valid
-//       set({ isAuthenticated: true, hasValidKeys: true });
-//     }
-//   },
-  
-//   clearWallet: () => {
-//     get().logout();
-//   }
-// }));
-
-// // Initialize the store on app load
-// if (typeof window !== 'undefined') {
-//   useWalletStore.getState().checkAuthStatus();
-//  }
 
 import { create } from 'zustand';
 import { PrivateKey, PublicKey, Utils } from '@bsv/sdk';
@@ -639,3 +426,271 @@ if (typeof window !== 'undefined') {
     }
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// // src/store/WalletStore.ts
+// import { create } from 'zustand';
+// import { PrivateKey, PublicKey } from '@bsv/sdk';
+
+// // Blog Key Types
+// interface SecureBlogKeys {
+//   tier1: string;
+//   tier2: string;
+//   tier3: string;
+//   tier4: string;
+//   tier5: string;
+// }
+
+// interface BlogKeyData {
+//   keys: SecureBlogKeys;
+//   accessBundles: {
+//     tier1: string[];
+//     tier2: string[];
+//     tier3: string[];
+//     tier4: string[];
+//     tier5: string[];
+//   };
+//   version: string;
+//   generatedAt: number;
+//   label?: string;
+// }
+
+// interface KeyData {
+//   privateKey: PrivateKey | null;
+//   publicKey: PublicKey | null;
+//   privateKeyHex: string;
+//   privateKeyWif: string;
+//   privateKeyBinary: Uint8Array;
+//   publicKeyHex: string;
+//   publicKeyDER: string;
+//   publicKeyRaw: { x: string; y: string };
+//   address: string;
+// }
+
+// interface Balance {
+//   confirmed: number;
+//   unconfirmed: number;
+//   loading: boolean;
+//   error: string | null;
+// }
+
+// interface WalletState {
+//   // Authentication
+//   isAuthenticated: boolean;
+//   hasValidKeys: boolean;
+  
+//   // Wallet Data
+//   network: 'mainnet' | 'testnet';
+//   keyData: KeyData;
+//   balance: Balance;
+//   blogKey: BlogKeyData | null;
+//   contacts: any[];
+  
+//   // Actions
+//   login: () => void;
+//   logout: () => void;
+//   setNetwork: (network: 'mainnet' | 'testnet') => void;
+//   setKeyData: (data: KeyData) => void;
+//   setBalance: (balance: Balance) => void;
+//   setBlogKey: (key: BlogKeyData | null) => void;
+//   updateContactSharedSecrets: (privateKey: PrivateKey) => void;
+//   checkAuthStatus: () => void;
+//   clearWallet: () => void;
+// }
+
+// export const useWalletStore = create<WalletState>((set, get) => ({
+//   // Initial state
+//   isAuthenticated: false,
+//   hasValidKeys: false,
+//   network: 'mainnet',
+//   keyData: {
+//     privateKey: null,
+//     publicKey: null,
+//     privateKeyHex: '',
+//     privateKeyWif: '',
+//     privateKeyBinary: new Uint8Array(),
+//     publicKeyHex: '',
+//     publicKeyDER: '',
+//     publicKeyRaw: { x: '', y: '' },
+//     address: ''
+//   },
+//   balance: {
+//     confirmed: 0,
+//     unconfirmed: 0,
+//     loading: false,
+//     error: null
+//   },
+//   blogKey: null,
+//   contacts: [],
+  
+//   // Actions
+//   login: () => {
+//     const { keyData, blogKey } = get();
+//     const hasValidKeys = keyData.privateKey !== null && blogKey !== null;
+    
+//     if (hasValidKeys) {
+//       set({ isAuthenticated: true, hasValidKeys: true });
+//       localStorage.setItem('isAuthenticated', 'true');
+//       localStorage.setItem('hasValidKeys', 'true');
+//     }
+//   },
+  
+//   logout: () => {
+//     set({
+//       isAuthenticated: false,
+//       hasValidKeys: false,
+//       keyData: {
+//         privateKey: null,
+//         publicKey: null,
+//         privateKeyHex: '',
+//         privateKeyWif: '',
+//         privateKeyBinary: new Uint8Array(),
+//         publicKeyHex: '',
+//         publicKeyDER: '',
+//         publicKeyRaw: { x: '', y: '' },
+//         address: ''
+//       },
+//       balance: {
+//         confirmed: 0,
+//         unconfirmed: 0,
+//         loading: false,
+//         error: null
+//       },
+//       blogKey: null
+//     });
+    
+//     // Clear localStorage
+//     localStorage.removeItem('isAuthenticated');
+//     localStorage.removeItem('hasValidKeys');
+//     localStorage.removeItem('walletData');
+//     localStorage.removeItem('blogKeyMeta');
+//   },
+  
+//   setNetwork: (network) => set({ network }),
+  
+//   setKeyData: (keyData) => {
+//     set({ keyData });
+//     // Check if we should update auth status
+//     const { blogKey } = get();
+//     if (keyData.privateKey && blogKey) {
+//       set({ hasValidKeys: true });
+//     }
+    
+//     // Optionally persist to localStorage (encrypted in production)
+//     try {
+//       const dataToStore = {
+//         address: keyData.address,
+//         publicKeyHex: keyData.publicKeyHex,
+//         // Don't store private key in plain text in production!
+//       };
+//       localStorage.setItem('walletData', JSON.stringify(dataToStore));
+//     } catch (err) {
+//       console.error('Failed to store wallet data:', err);
+//     }
+//   },
+  
+//   setBalance: (balance) => set({ balance }),
+  
+//   setBlogKey: (blogKey) => {
+//     set({ blogKey });
+//     // Check if we should update auth status
+//     const { keyData } = get();
+//     if (keyData.privateKey && blogKey) {
+//       set({ hasValidKeys: true });
+//     }
+    
+//     // Optionally persist blog key info (not the actual keys)
+//     try {
+//       if (blogKey) {
+//         const dataToStore = {
+//           version: blogKey.version,
+//           label: blogKey.label,
+//           generatedAt: blogKey.generatedAt
+//         };
+//         localStorage.setItem('blogKeyMeta', JSON.stringify(dataToStore));
+//       }
+//     } catch (err) {
+//       console.error('Failed to store blog key metadata:', err);
+//     }
+//   },
+  
+//   updateContactSharedSecrets: (privateKey: PrivateKey) => {
+//     // Implement your contact shared secrets logic here
+//     const { contacts } = get();
+//     // Update contacts with new shared secrets based on the private key
+//     console.log('Updating contact shared secrets...');
+//   },
+  
+//   checkAuthStatus: () => {
+//     // Check localStorage for previous auth status
+//     const authStatus = localStorage.getItem('isAuthenticated');
+//     const keysStatus = localStorage.getItem('hasValidKeys');
+    
+//     if (authStatus === 'true' && keysStatus === 'true') {
+//       // Note: In production, you'd want to verify the keys are still valid
+//       set({ isAuthenticated: true, hasValidKeys: true });
+//     }
+//   },
+  
+//   clearWallet: () => {
+//     get().logout();
+//   }
+// }));
+
+// // Initialize the store on app load
+// if (typeof window !== 'undefined') {
+//   useWalletStore.getState().checkAuthStatus();
+//  }

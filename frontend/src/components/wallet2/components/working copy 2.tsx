@@ -1,617 +1,1547 @@
-import React, { useState, useEffect } from 'react';
-import { useWalletStore } from '../../store/WalletStore';
-import { CreateTextInscription } from './CreateTextInscription';
-import { CreateImageInscription } from './CreateImageInscription';
-import { CreateProfileInscription } from './CreateProfileInscription';
-import { CreateProfile2Inscription } from './CreateProfile2Inscription';
-import { CreateLargeProfileInscription } from './CreateLargeProfileInscription';
-import { CreateLargeProfileInscription1 } from './2CreateLargeProfileInscription'; // 1st attempt 
-import { CreateEncryptedPropertyInscription } from './CreateEncryptedPropertyInscription';
-// import { CreateLargeProfileInscription1 } from './CreateLargeProfileInscription1';
-import { BCATManager } from './BCATComponent';
-import { InscriptionTypeSelector } from './InscriptionTypeSelector';
-import { EncryptionOptions } from './EncryptionOptions';
-import { TransactionStatus } from './TransactionStatus';
-import { WalletInfo } from './WalletInfo';
-import { BlogEncryption, EncryptionLevel, getEncryptionLevelColor, getEncryptionLevelLabel } from  '../utils/BlogEncryption';
-import { createInscription } from '../utils/inscriptionCreator';
+import React, { useState, useEffect, useRef } from 'react';
+import { PrivateKey, PublicKey, Utils } from '@bsv/sdk';
+import { useWalletStore } from '../store/WalletStore';
 
-// Update the InscriptionType type
-export type InscriptionType = 'text' | 'image' | 'profile' | 'profile2' | 'largeProfile' | 'largeProfile2' | 'encryptedProperty';
-
-interface CreateInscriptionProps {
-  network: 'mainnet' | 'testnet';
+// Polyfill Buffer for browser environment
+if (typeof window !== 'undefined' && !window.Buffer) {
+  window.Buffer = {
+    from: (data: any, encoding?: string) => {
+      if (encoding === 'hex') {
+        const bytes = [];
+        for (let i = 0; i < data.length; i += 2) {
+          bytes.push(parseInt(data.substr(i, 2), 16));
+        }
+        return new Uint8Array(bytes);
+      } else if (typeof data === 'string') {
+        return new TextEncoder().encode(data);
+      }
+      return new Uint8Array(data);
+    },
+    alloc: (size: number) => new Uint8Array(size),
+    concat: (arrays: Uint8Array[]) => {
+      const totalLength = arrays.reduce((sum, arr) => sum + arr.length, 0);
+      const result = new Uint8Array(totalLength);
+      let offset = 0;
+      for (const arr of arrays) {
+        result.set(arr, offset);
+        offset += arr.length;
+      }
+      return result;
+    }
+  } as any;
 }
 
-export const CreateInscription: React.FC<CreateInscriptionProps> = ({ network }) => {
-  const [inscriptionType, setInscriptionType] = useState<InscriptionType>('text');
-  const [textData, setTextData] = useState('');
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string>('');
-  const [profileData, setProfileData] = useState({
-    username: '',
-    title: '',
-    bio: '',
-    avatar: ''
+// Blog Key Types - Updated for secure hierarchical system
+interface SecureBlogKeys {
+  tier1: string;  // 128-bit independent key for Level 1
+  tier2: string;  // 128-bit independent key for Level 2
+  tier3: string;  // 128-bit independent key for Level 3
+  tier4: string;  // 192-bit independent key for Level 4
+  tier5: string;  // 256-bit independent key for Level 5
+}
+
+interface BlogKeyData {
+  keys: SecureBlogKeys;
+  // Access bundles: Each tier gets all keys from their level and below
+  accessBundles: {
+    tier1: string[];  // [tier1]
+    tier2: string[];  // [tier1, tier2]
+    tier3: string[];  // [tier1, tier2, tier3]
+    tier4: string[];  // [tier1, tier2, tier3, tier4]
+    tier5: string[];  // [tier1, tier2, tier3, tier4, tier5]
+  };
+  version: string;
+  generatedAt: number;
+  label?: string;  // Optional label for this key version
+}
+
+// Complete key history structure
+interface KeyHistory {
+  currentVersion: number;
+  versions: {
+    [versionNumber: number]: BlogKeyData;
+  };
+  metadata: {
+    createdAt: number;
+    lastModified: number;
+    totalVersions: number;
+  };
+}
+
+export const Wallet: React.FC = () => {
+  const [inputKey, setInputKey] = useState<string>('');
+  const [error, setError] = useState<string>('');
+  const [showPrivateKey, setShowPrivateKey] = useState<boolean>(false);
+  const [showBlogKey, setShowBlogKey] = useState<boolean>(false);
+  
+  // Blog key states
+  const [blogKeyData, setBlogKeyData] = useState<BlogKeyData | null>(null);
+  const [keyHistory, setKeyHistory] = useState<KeyHistory>({
+    currentVersion: 0,
+    versions: {},
+    metadata: {
+      createdAt: Date.now(),
+      lastModified: Date.now(),
+      totalVersions: 0
+    }
   });
-  const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
-  const [profileImagePreview, setProfileImagePreview] = useState<string>('');
-  const [backgroundImageFile, setBackgroundImageFile] = useState<File | null>(null);
-  const [backgroundImagePreview, setBackgroundImagePreview] = useState<string>('');
-  const [loading, setLoading] = useState(false);
-  const [lastTransactionTime, setLastTransactionTime] = useState(0);
-  const [currentFeeRate, setCurrentFeeRate] = useState<number>(1);
-  const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info' | null; message: string }>({ 
-    type: null, 
-    message: '' 
-  });
-  const [lastTxid, setLastTxid] = useState('');
-  const [encryptionLevel, setEncryptionLevel] = useState<EncryptionLevel>(0);
-  const [showEncryptionOptions, setShowEncryptionOptions] = useState(false);
-  const [encryptedData, setEncryptedData] = useState<string>('');
-  const [encryptedSize, setEncryptedSize] = useState<number>(0);
-  const [isEncrypting, setIsEncrypting] = useState(false);
+  const [selectedVersion, setSelectedVersion] = useState<number>(0);
+  const [importBlogKey, setImportBlogKey] = useState<string>('');
+  const [blogKeyError, setBlogKeyError] = useState<string>('');
+  const [selectedImportTier, setSelectedImportTier] = useState<number>(5);
+  const [replaceMode, setReplaceMode] = useState<boolean>(false);
+  const [versionLabel, setVersionLabel] = useState<string>('');
+  
+  // New state for Full Access Bundle import
+  const [fullAccessBundleInput, setFullAccessBundleInput] = useState<string>('');
+  const [importBundleLabel, setImportBundleLabel] = useState<string>('');
+  
+  // Drag and drop states
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const {
+    network,
+    keyData,
+    balance,
+    setKeyData,
+    setBalance,
+    updateContactSharedSecrets,
+    setBlogKey // Assuming this will be added to WalletStore
+  } = useWalletStore();
 
-  const { keyData, balance, whatsOnChainApiKey, blogKeyHistory, getKeySegmentForLevel } = useWalletStore();
-
-  // Fetch current fee rate from the network
-  const fetchCurrentFeeRate = async () => {
-    try {
-      const defaultRateSatPerKB = 1;
-      
-      const response = await fetch(
-        `https://api.whatsonchain.com/v1/bsv/${network === 'testnet' ? 'test' : 'main'}/fee/estimates`
-      ).catch(() => null);
-
-      if (response && response.ok) {
-        const feeData = await response.json();
-        const feeRatePerByte = feeData.standard || feeData.halfHour || 0.001;
-        const feeRatePerKB = feeRatePerByte * 1000;
-        
-        const actualRate = Math.max(defaultRateSatPerKB, Math.round(feeRatePerKB));
-        setCurrentFeeRate(actualRate);
-        console.log(`Current network fee rate: ${actualRate} sat/KB`);
-        return actualRate;
-      }
-    } catch (error) {
-      console.log('Could not fetch fee rate, using default BSV rate');
+  // Generate cryptographically secure random key of specified bit length
+  const generateSecureRandomKey = (bits: number): string => {
+    const bytes = bits / 8;
+    const randomBytes = new Uint8Array(bytes);
+    
+    if (window.crypto && window.crypto.getRandomValues) {
+      window.crypto.getRandomValues(randomBytes);
+    } else {
+      // This should never be used in production
+      throw new Error('Secure random number generation not available');
     }
     
-    const defaultRate = 1;
-    setCurrentFeeRate(defaultRate);
-    console.log(`Using default BSV fee rate: ${defaultRate} sat/KB`);
-    return defaultRate;
+    // Convert to hex string
+    return Array.from(randomBytes)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
   };
 
-  // Fetch fee rate on component mount and network change
-  useEffect(() => {
-    fetchCurrentFeeRate();
-  }, [network]);
-
-  // Auto-encrypt data when inputs or encryption level change
-  useEffect(() => {
-    if (encryptionLevel > 0 && blogKeyHistory.current && inscriptionType !== 'largeProfile' && inscriptionType !== 'largeProfile2' && inscriptionType !== 'encryptedProperty') {
-      encryptCurrentData();
-    } else {
-      setEncryptedData('');
-      setEncryptedSize(0);
+  // Import Full Access Bundle (Tier 5) - NEW FUNCTION
+  const importFullAccessBundle = () => {
+    const trimmedBundle = fullAccessBundleInput.trim();
+    
+    if (!trimmedBundle) {
+      setBlogKeyError('Please enter a Full Access Bundle key');
+      return;
     }
-  }, [textData, imageFile, profileData, profileImageFile, backgroundImageFile, encryptionLevel, inscriptionType]);
+    
+    try {
+      // Try to decode the bundle
+      const decodedString = atob(trimmedBundle);
+      const bundleObject = JSON.parse(decodedString);
+      
+      // Validate it's a tier 5 bundle
+      if (bundleObject.tier !== 5) {
+        throw new Error('This is not a Full Access Bundle (Tier 5). Please provide a Tier 5 bundle.');
+      }
+      
+      // Validate the bundle structure
+      if (!bundleObject.keys || !Array.isArray(bundleObject.keys) || bundleObject.keys.length !== 5) {
+        throw new Error('Invalid Full Access Bundle format - must contain all 5 tier keys');
+      }
+      
+      // Validate key lengths
+      const expectedLengths = [32, 32, 32, 48, 64]; // hex character counts
+      for (let i = 0; i < 5; i++) {
+        if (!bundleObject.keys[i] || bundleObject.keys[i].length !== expectedLengths[i]) {
+          throw new Error(`Invalid key length for Tier ${i + 1}. Expected ${expectedLengths[i]} hex characters.`);
+        }
+        // Validate hex format
+        if (!/^[0-9a-fA-F]+$/.test(bundleObject.keys[i])) {
+          throw new Error(`Tier ${i + 1} key contains invalid characters. Must be hexadecimal.`);
+        }
+      }
+      
+      // Reconstruct the blog key data from the imported bundle
+      const keys: SecureBlogKeys = {
+        tier1: bundleObject.keys[0],
+        tier2: bundleObject.keys[1],
+        tier3: bundleObject.keys[2],
+        tier4: bundleObject.keys[3],
+        tier5: bundleObject.keys[4],
+      };
+      
+      // Rebuild access bundles
+      const accessBundles = {
+        tier1: [keys.tier1],
+        tier2: [keys.tier1, keys.tier2],
+        tier3: [keys.tier1, keys.tier2, keys.tier3],
+        tier4: [keys.tier1, keys.tier2, keys.tier3, keys.tier4],
+        tier5: [keys.tier1, keys.tier2, keys.tier3, keys.tier4, keys.tier5],
+      };
+      
+      const newBlogKeyData: BlogKeyData = {
+        keys,
+        accessBundles,
+        version: bundleObject.version || 'v2-secure-imported',
+        generatedAt: bundleObject.createdAt || Date.now(),
+        label: importBundleLabel || 'Imported Full Access Bundle'
+      };
+      
+      // Add to history
+      const newVersion = keyHistory.currentVersion + 1;
+      const updatedHistory: KeyHistory = {
+        currentVersion: newVersion,
+        versions: {
+          ...keyHistory.versions,
+          [newVersion]: newBlogKeyData
+        },
+        metadata: {
+          createdAt: keyHistory.metadata.createdAt,
+          lastModified: Date.now(),
+          totalVersions: newVersion
+        }
+      };
+      
+      setKeyHistory(updatedHistory);
+      setSelectedVersion(newVersion);
+      setBlogKeyData(newBlogKeyData);
+      
+      if (setBlogKey) {
+        setBlogKey(newBlogKeyData);
+      }
+      
+      // Save to localStorage for persistence and sync with EntryDialog
+      if (window.localStorage) {
+        localStorage.setItem('blogKeyHistory', JSON.stringify(updatedHistory));
+        localStorage.setItem('currentFullAccessBundle', trimmedBundle);
+      }
+      
+      setBlogKeyError('Full Access Bundle imported successfully!');
+      setFullAccessBundleInput('');
+      setImportBundleLabel('');
+    } catch (err) {
+      setBlogKeyError('Failed to import Full Access Bundle: ' + (err instanceof Error ? err.message : 'Invalid bundle format'));
+    }
+  };
 
-  // Encrypt current data based on inscription type
-  const encryptCurrentData = async () => {
-    if (!blogKeyHistory.current || encryptionLevel === 0) {
-      setEncryptedData('');
-      setEncryptedSize(0);
+  // Generate new hierarchical blog keys with independent keys for each tier
+  const generateHierarchicalBlogKeys = () => {
+    try {
+      // Generate independent keys for each tier
+      const keys: SecureBlogKeys = {
+        tier1: generateSecureRandomKey(128),  // 32 hex chars
+        tier2: generateSecureRandomKey(128),  // 32 hex chars
+        tier3: generateSecureRandomKey(128),  // 32 hex chars
+        tier4: generateSecureRandomKey(192),  // 48 hex chars
+        tier5: generateSecureRandomKey(256),  // 64 hex chars
+      };
+
+      // Create access bundles - each tier includes all lower tier keys
+      const accessBundles = {
+        tier1: [keys.tier1],
+        tier2: [keys.tier1, keys.tier2],
+        tier3: [keys.tier1, keys.tier2, keys.tier3],
+        tier4: [keys.tier1, keys.tier2, keys.tier3, keys.tier4],
+        tier5: [keys.tier1, keys.tier2, keys.tier3, keys.tier4, keys.tier5],
+      };
+
+      const newBlogKeyData: BlogKeyData = {
+        keys,
+        accessBundles,
+        version: 'v2-secure',
+        generatedAt: Date.now(),
+        label: versionLabel || `Version ${keyHistory.currentVersion + 1}`
+      };
+      
+      // Add to history
+      const newVersion = keyHistory.currentVersion + 1;
+      const updatedHistory: KeyHistory = {
+        currentVersion: newVersion,
+        versions: {
+          ...keyHistory.versions,
+          [newVersion]: newBlogKeyData
+        },
+        metadata: {
+          createdAt: keyHistory.metadata.createdAt,
+          lastModified: Date.now(),
+          totalVersions: newVersion
+        }
+      };
+      
+      setKeyHistory(updatedHistory);
+      setSelectedVersion(newVersion);
+      setBlogKeyData(newBlogKeyData);
+      
+      // Store in WalletStore if the method exists
+      if (setBlogKey) {
+        setBlogKey(newBlogKeyData);
+      }
+      
+      // Create and save the Full Access Bundle to localStorage
+      const bundleObject = {
+        tier: 5,
+        keys: [
+          keys.tier1,
+          keys.tier2,
+          keys.tier3,
+          keys.tier4,
+          keys.tier5
+        ],
+        version: newBlogKeyData.version,
+        createdAt: newBlogKeyData.generatedAt
+      };
+      
+      const fullAccessBundle = btoa(JSON.stringify(bundleObject));
+      
+      // Save to localStorage for persistence and sync with EntryDialog
+      if (window.localStorage) {
+        localStorage.setItem('blogKeyHistory', JSON.stringify(updatedHistory));
+        localStorage.setItem('currentFullAccessBundle', fullAccessBundle);
+      }
+      
+      setBlogKeyError('');
+      setVersionLabel(''); // Clear label after use
+    } catch (err) {
+      setBlogKeyError('Failed to generate blog keys: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    }
+  };
+
+  // Replace a specific tier key while keeping others
+  const replaceSpecificTier = (tierNumber: number, newKey: string) => {
+    if (!blogKeyData) {
+      setBlogKeyError('No existing keys to modify');
+      return;
+    }
+    
+    try {
+      // Validate the new key
+      const expectedLengths: { [key: number]: number } = {
+        1: 32, // 128 bits
+        2: 32, // 128 bits
+        3: 32, // 128 bits
+        4: 48, // 192 bits
+        5: 64, // 256 bits
+      };
+      
+      if (!/^[0-9a-fA-F]+$/.test(newKey)) {
+        throw new Error('Key must be in hexadecimal format');
+      }
+      
+      if (newKey.length !== expectedLengths[tierNumber]) {
+        throw new Error(`Tier ${tierNumber} key must be exactly ${expectedLengths[tierNumber]} hex characters`);
+      }
+      
+      // Copy existing keys
+      const updatedKeys = { ...blogKeyData.keys };
+      
+      // Replace the specific tier
+      const tierKey = `tier${tierNumber}` as keyof SecureBlogKeys;
+      updatedKeys[tierKey] = newKey;
+      
+      // CRITICAL: Rebuild ALL access bundles with the updated keys
+      // Each tier's bundle includes all keys from their level and below
+      const accessBundles = {
+        tier1: [updatedKeys.tier1],
+        tier2: [updatedKeys.tier1, updatedKeys.tier2],
+        tier3: [updatedKeys.tier1, updatedKeys.tier2, updatedKeys.tier3],
+        tier4: [updatedKeys.tier1, updatedKeys.tier2, updatedKeys.tier3, updatedKeys.tier4],
+        tier5: [updatedKeys.tier1, updatedKeys.tier2, updatedKeys.tier3, updatedKeys.tier4, updatedKeys.tier5],
+      };
+      
+      const updatedBlogKeyData: BlogKeyData = {
+        keys: updatedKeys,
+        accessBundles,
+        version: 'v2-secure-modified',
+        generatedAt: Date.now(),
+        label: versionLabel || `Version ${keyHistory.currentVersion + 1} (Modified Tier ${tierNumber})`
+      };
+      
+      // Add to history as a new version
+      const newVersion = keyHistory.currentVersion + 1;
+      const updatedHistory: KeyHistory = {
+        currentVersion: newVersion,
+        versions: {
+          ...keyHistory.versions,
+          [newVersion]: updatedBlogKeyData
+        },
+        metadata: {
+          createdAt: keyHistory.metadata.createdAt,
+          lastModified: Date.now(),
+          totalVersions: newVersion
+        }
+      };
+      
+      setKeyHistory(updatedHistory);
+      setSelectedVersion(newVersion);
+      setBlogKeyData(updatedBlogKeyData);
+      
+      // Update WalletStore
+      if (setBlogKey) {
+        setBlogKey(updatedBlogKeyData);
+      }
+      
+      // IMPORTANT: Update the Full Access Bundle in localStorage
+      const bundleObject = {
+        tier: 5,
+        keys: [
+          updatedKeys.tier1,
+          updatedKeys.tier2,
+          updatedKeys.tier3,
+          updatedKeys.tier4,
+          updatedKeys.tier5
+        ],
+        version: updatedBlogKeyData.version,
+        createdAt: updatedBlogKeyData.generatedAt
+      };
+      
+      const fullAccessBundle = btoa(JSON.stringify(bundleObject));
+      
+      // Save ALL updates to localStorage for persistence and sync
+      if (window.localStorage) {
+        localStorage.setItem('blogKeyHistory', JSON.stringify(updatedHistory));
+        localStorage.setItem('currentFullAccessBundle', fullAccessBundle);
+      }
+      
+      setBlogKeyError(`Successfully replaced Tier ${tierNumber} key. All access bundles updated.`);
+      setImportBlogKey('');
+      setVersionLabel('');
+    } catch (err) {
+      setBlogKeyError('Failed to replace key: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    }
+  };
+
+  // Create a shareable access bundle for a specific tier
+  const createAccessBundle = (tier: number): string => {
+    if (!blogKeyData) return '';
+    
+    const tierKey = `tier${tier}` as keyof typeof blogKeyData.accessBundles;
+    const bundle = blogKeyData.accessBundles[tierKey];
+    
+    // Create a JSON object with the tier level and keys
+    const bundleObject = {
+      tier,
+      keys: bundle,
+      version: blogKeyData.version,
+      createdAt: Date.now()
+    };
+    
+    // Convert to base64 for easy sharing
+    return btoa(JSON.stringify(bundleObject));
+  };
+
+  // Import an access bundle
+  const importAccessBundle = () => {
+    const trimmedKey = importBlogKey.trim();
+    
+    if (!trimmedKey) {
+      setBlogKeyError('Please enter an access bundle or key');
+      return;
+    }
+    
+    // If in replace mode and it's a hex key
+    if (replaceMode && /^[0-9a-fA-F]+$/.test(trimmedKey) && blogKeyData) {
+      replaceSpecificTier(selectedImportTier, trimmedKey);
+      return;
+    }
+    
+    try {
+      // Try to decode the bundle
+      const decodedString = atob(trimmedKey);
+      const bundleObject = JSON.parse(decodedString);
+      
+      // Validate the bundle structure
+      if (!bundleObject.tier || !bundleObject.keys || !Array.isArray(bundleObject.keys)) {
+        throw new Error('Invalid access bundle format');
+      }
+      
+      // Reconstruct the blog key data from the imported bundle
+      const keys: SecureBlogKeys = {
+        tier1: bundleObject.keys[0] || '',
+        tier2: bundleObject.keys[1] || '',
+        tier3: bundleObject.keys[2] || '',
+        tier4: bundleObject.keys[3] || '',
+        tier5: bundleObject.keys[4] || '',
+      };
+      
+      // Rebuild access bundles based on imported tier
+      const accessBundles = {
+        tier1: bundleObject.tier >= 1 ? [keys.tier1].filter(k => k) : [],
+        tier2: bundleObject.tier >= 2 ? [keys.tier1, keys.tier2].filter(k => k) : [],
+        tier3: bundleObject.tier >= 3 ? [keys.tier1, keys.tier2, keys.tier3].filter(k => k) : [],
+        tier4: bundleObject.tier >= 4 ? [keys.tier1, keys.tier2, keys.tier3, keys.tier4].filter(k => k) : [],
+        tier5: bundleObject.tier >= 5 ? [keys.tier1, keys.tier2, keys.tier3, keys.tier4, keys.tier5].filter(k => k) : [],
+      };
+      
+      const newBlogKeyData: BlogKeyData = {
+        keys,
+        accessBundles,
+        version: bundleObject.version || 'v2-secure',
+        generatedAt: bundleObject.createdAt || Date.now(),
+        label: versionLabel || `Imported Bundle (Tier ${bundleObject.tier})`
+      };
+      
+      // Add to history
+      const newVersion = keyHistory.currentVersion + 1;
+      const updatedHistory: KeyHistory = {
+        currentVersion: newVersion,
+        versions: {
+          ...keyHistory.versions,
+          [newVersion]: newBlogKeyData
+        },
+        metadata: {
+          createdAt: keyHistory.metadata.createdAt,
+          lastModified: Date.now(),
+          totalVersions: newVersion
+        }
+      };
+      
+      setKeyHistory(updatedHistory);
+      setSelectedVersion(newVersion);
+      setBlogKeyData(newBlogKeyData);
+      
+      if (setBlogKey) {
+        setBlogKey(newBlogKeyData);
+      }
+      
+      setBlogKeyError('');
+      setImportBlogKey('');
+      setVersionLabel('');
+    } catch (err) {
+      // If base64 decode fails, try importing as raw hex key for backward compatibility
+      if (selectedImportTier && /^[0-9a-fA-F]+$/.test(trimmedKey)) {
+        importRawHexKey(trimmedKey, selectedImportTier);
+      } else {
+        setBlogKeyError('Invalid access bundle or hex key format');
+      }
+    }
+  };
+
+  // Import raw hex key for a specific tier (backward compatibility)
+  const importRawHexKey = (hexKey: string, tier: number) => {
+    try {
+      // Validate hex format
+      if (!/^[0-9a-fA-F]+$/.test(hexKey)) {
+        throw new Error('Invalid hexadecimal format');
+      }
+      
+      // Check key length based on tier
+      const expectedLengths: { [key: number]: number } = {
+        1: 32, // 128 bits
+        2: 32, // 128 bits
+        3: 32, // 128 bits
+        4: 48, // 192 bits
+        5: 64, // 256 bits
+      };
+      
+      if (hexKey.length !== expectedLengths[tier]) {
+        throw new Error(`Tier ${tier} key must be exactly ${expectedLengths[tier]} hex characters`);
+      }
+      
+      // Create a partial key structure
+      const keys: SecureBlogKeys = {
+        tier1: tier >= 1 && tier === 1 ? hexKey : '',
+        tier2: tier >= 2 && tier === 2 ? hexKey : '',
+        tier3: tier >= 3 && tier === 3 ? hexKey : '',
+        tier4: tier >= 4 && tier === 4 ? hexKey : '',
+        tier5: tier >= 5 && tier === 5 ? hexKey : '',
+      };
+      
+      // Note: This creates a partial key set - only the imported tier
+      const accessBundles = {
+        tier1: tier >= 1 && keys.tier1 ? [keys.tier1] : [],
+        tier2: tier >= 2 && keys.tier2 ? [keys.tier1, keys.tier2].filter(k => k) : [],
+        tier3: tier >= 3 && keys.tier3 ? [keys.tier1, keys.tier2, keys.tier3].filter(k => k) : [],
+        tier4: tier >= 4 && keys.tier4 ? [keys.tier1, keys.tier2, keys.tier3, keys.tier4].filter(k => k) : [],
+        tier5: tier >= 5 && keys.tier5 ? [keys.tier1, keys.tier2, keys.tier3, keys.tier4, keys.tier5].filter(k => k) : [],
+      };
+      
+      const newBlogKeyData: BlogKeyData = {
+        keys,
+        accessBundles,
+        version: 'v2-secure-partial',
+        generatedAt: Date.now(),
+        label: versionLabel || `Imported Tier ${tier} Key`
+      };
+      
+      // Add to history
+      const newVersion = keyHistory.currentVersion + 1;
+      const updatedHistory: KeyHistory = {
+        currentVersion: newVersion,
+        versions: {
+          ...keyHistory.versions,
+          [newVersion]: newBlogKeyData
+        },
+        metadata: {
+          createdAt: keyHistory.metadata.createdAt,
+          lastModified: Date.now(),
+          totalVersions: newVersion
+        }
+      };
+      
+      setKeyHistory(updatedHistory);
+      setSelectedVersion(newVersion);
+      setBlogKeyData(newBlogKeyData);
+      setBlogKeyError(`Imported Tier ${tier} key. Note: This is a partial key set.`);
+      setImportBlogKey('');
+      setVersionLabel('');
+    } catch (err) {
+      setBlogKeyError('Failed to import key: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    }
+  };
+
+  // Download all key history as JSON
+  const downloadKeyHistory = () => {
+    if (Object.keys(keyHistory.versions).length === 0) {
+      setBlogKeyError('No keys to download');
+      return;
+    }
+    
+    const dataToDownload = {
+      keyHistory,
+      exportedAt: Date.now(),
+      exportVersion: '1.0',
+      metadata: {
+        totalVersions: keyHistory.metadata.totalVersions,
+        currentVersion: keyHistory.currentVersion,
+        created: new Date(keyHistory.metadata.createdAt).toISOString(),
+        lastModified: new Date(keyHistory.metadata.lastModified).toISOString()
+      }
+    };
+    
+    const jsonString = JSON.stringify(dataToDownload, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `blog-keys-history-${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    setBlogKeyError('Key history downloaded successfully');
+  };
+
+  // Handle file upload
+  const handleFileUpload = (file: File) => {
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const data = JSON.parse(content);
+        
+        // Validate the uploaded data structure
+        if (!data.keyHistory || !data.keyHistory.versions) {
+          throw new Error('Invalid key history file format');
+        }
+        
+        // Merge with existing history or replace
+        const uploadedHistory = data.keyHistory as KeyHistory;
+        
+        // Find the highest version number to continue from
+        const existingMaxVersion = Math.max(0, ...Object.keys(keyHistory.versions).map(Number));
+        const uploadedMaxVersion = Math.max(0, ...Object.keys(uploadedHistory.versions).map(Number));
+        
+        // Merge histories
+        const mergedVersions: { [key: number]: BlogKeyData } = {};
+        
+        // Add existing versions
+        Object.entries(keyHistory.versions).forEach(([version, data]) => {
+          mergedVersions[Number(version)] = data;
+        });
+        
+        // Add uploaded versions with new version numbers to avoid conflicts
+        Object.entries(uploadedHistory.versions).forEach(([version, data]) => {
+          const newVersion = existingMaxVersion + Number(version);
+          mergedVersions[newVersion] = {
+            ...data,
+            label: data.label ? `${data.label} (Imported)` : `Imported Version ${version}`
+          };
+        });
+        
+        const newCurrentVersion = Math.max(...Object.keys(mergedVersions).map(Number));
+        
+        const mergedHistory: KeyHistory = {
+          currentVersion: newCurrentVersion,
+          versions: mergedVersions,
+          metadata: {
+            createdAt: Math.min(keyHistory.metadata.createdAt, uploadedHistory.metadata.createdAt),
+            lastModified: Date.now(),
+            totalVersions: Object.keys(mergedVersions).length
+          }
+        };
+        
+        setKeyHistory(mergedHistory);
+        setSelectedVersion(newCurrentVersion);
+        
+        // Load the latest version
+        if (mergedVersions[newCurrentVersion]) {
+          setBlogKeyData(mergedVersions[newCurrentVersion]);
+          if (setBlogKey) {
+            setBlogKey(mergedVersions[newCurrentVersion]);
+          }
+        }
+        
+        setBlogKeyError(`Successfully imported ${Object.keys(uploadedHistory.versions).length} key versions`);
+      } catch (err) {
+        setBlogKeyError('Failed to import key history: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      }
+    };
+    
+    reader.onerror = () => {
+      setBlogKeyError('Failed to read file');
+    };
+    
+    reader.readAsText(file);
+  };
+
+  // Drag and drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const files = Array.from(e.dataTransfer.files);
+    const jsonFile = files.find(file => file.type === 'application/json' || file.name.endsWith('.json'));
+    
+    if (jsonFile) {
+      handleFileUpload(jsonFile);
+    } else {
+      setBlogKeyError('Please upload a valid JSON key history file');
+    }
+  };
+
+  // Load selected version from history
+  const loadVersion = (versionNumber: number) => {
+    const versionData = keyHistory.versions[versionNumber];
+    if (versionData) {
+      setBlogKeyData(versionData);
+      setSelectedVersion(versionNumber);
+      if (setBlogKey) {
+        setBlogKey(versionData);
+      }
+      setBlogKeyError(`Loaded ${versionData.label || `Version ${versionNumber}`}`);
+    }
+  };
+
+  // Get the highest tier level available in current blog key data
+  const getHighestAvailableTier = (): number => {
+    if (!blogKeyData) return 0;
+    
+    if (blogKeyData.keys.tier5) return 5;
+    if (blogKeyData.keys.tier4) return 4;
+    if (blogKeyData.keys.tier3) return 3;
+    if (blogKeyData.keys.tier2) return 2;
+    if (blogKeyData.keys.tier1) return 1;
+    return 0;
+  };
+
+  // Generate random private key
+  const generateRandomKey = () => {
+    try {
+      let privKey;
+      try {
+        privKey = PrivateKey.fromRandom();
+      } catch (e) {
+        // Fallback: generate random 32 bytes and create private key
+        const randomBytes = new Uint8Array(32);
+        if (window.crypto && window.crypto.getRandomValues) {
+          window.crypto.getRandomValues(randomBytes);
+        } else {
+          // Very basic fallback for development
+          for (let i = 0; i < 32; i++) {
+            randomBytes[i] = Math.floor(Math.random() * 256);
+          }
+        }
+        const hexString = Array.from(randomBytes)
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('');
+        privKey = PrivateKey.fromHex(hexString);
+      }
+      
+      setInputKey(privKey.toHex());
+      processPrivateKey(privKey);
+      setError('');
+    } catch (err) {
+      setError('Failed to generate random key: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      console.error('Error generating key:', err);
+    }
+  };
+
+  // Process user input private key
+  const importPrivateKey = () => {
+    if (!inputKey.trim()) {
+      setError('Please enter a private key');
       return;
     }
 
-    setIsEncrypting(true);
+    try {
+      let privKey: PrivateKey;
+      
+      if (inputKey.startsWith('L') || inputKey.startsWith('K') || inputKey.startsWith('5')) {
+        privKey = PrivateKey.fromWif(inputKey.trim());
+      } else if (inputKey.length === 64) {
+        privKey = PrivateKey.fromHex(inputKey.trim());
+      } else {
+        throw new Error('Invalid private key format');
+      }
+
+      processPrivateKey(privKey);
+      setError('');
+    } catch (err) {
+      setError('Invalid private key format. Please enter a valid hex or WIF key.');
+    }
+  };
+
+  // Process private key and derive all formats
+  const processPrivateKey = (privKey: PrivateKey) => {
+    try {
+      const pubKey = privKey.toPublicKey();
+      
+      const address = network === 'testnet' 
+        ? pubKey.toAddress('testnet').toString()
+        : pubKey.toAddress('mainnet').toString();
+
+      let xCoord = '';
+      let yCoord = '';
+      
+      try {
+        if (pubKey.point && pubKey.point.x && pubKey.point.y) {
+          xCoord = pubKey.point.x.toString(16).padStart(64, '0');
+          yCoord = pubKey.point.y.toString(16).padStart(64, '0');
+        } else {
+          const pubKeyHex = pubKey.toString();
+          if (pubKeyHex.startsWith('02') || pubKeyHex.startsWith('03')) {
+            xCoord = pubKeyHex.slice(2);
+            yCoord = 'Compressed format - Y coordinate derived from X';
+          } else if (pubKeyHex.startsWith('04')) {
+            xCoord = pubKeyHex.slice(2, 66);
+            yCoord = pubKeyHex.slice(66, 130);
+          }
+        }
+      } catch (e) {
+        console.log('Could not extract raw coordinates:', e);
+        xCoord = 'Not available';
+        yCoord = 'Not available';
+      }
+
+      setKeyData({
+        privateKey: privKey,
+        publicKey: pubKey,
+        privateKeyHex: privKey.toHex(),
+        privateKeyWif: privKey.toWif(),
+        privateKeyBinary: privKey.toArray(),
+        publicKeyHex: pubKey.toString(),
+        publicKeyDER: Utils.toHex(pubKey.toDER()),
+        publicKeyRaw: { x: xCoord, y: yCoord },
+        address: address
+      });
+      
+      updateContactSharedSecrets(privKey);
+    } catch (err) {
+      console.error('Error processing private key:', err);
+      setError('Error processing key: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    }
+  };
+
+  // Check balance for address
+  const checkBalance = async (address: string) => {
+    if (!address) return;
+    
+    setBalance({ ...balance, loading: true, error: null });
     
     try {
-      const keySegment = getKeySegmentForLevel(encryptionLevel);
-      if (!keySegment) {
-        throw new Error('No key segment available for encryption level');
+      const baseUrl = network === 'testnet' 
+        ? 'https://api.whatsonchain.com/v1/bsv/test'
+        : 'https://api.whatsonchain.com/v1/bsv/main';
+      
+      const response = await fetch(`${baseUrl}/address/${address}/balance`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch balance');
       }
-
-      let dataToEncrypt: any;
-      let contentType = '';
-
-      // Prepare data based on inscription type
-      if (inscriptionType === 'text') {
-        if (!textData) {
-          setEncryptedData('');
-          setEncryptedSize(0);
-          setIsEncrypting(false);
-          return;
-        }
-        dataToEncrypt = textData;
-        contentType = 'text';
-      } else if (inscriptionType === 'image' && imageFile) {
-        // Handle image encryption
-        const { imageToBase64 } = await import('../utils/imageUtils');
-        const base64Data = await imageToBase64(imageFile, undefined, true, undefined, 'image');
-        dataToEncrypt = {
-          name: imageFile.name,
-          type: imageFile.type,
-          size: imageFile.size,
-          data: base64Data
-        };
-        contentType = 'image';
-      } else if (inscriptionType === 'profile' || inscriptionType === 'profile2' || inscriptionType === 'profile4') {
-        // Handle profile encryption
-        const { imageToBase64 } = await import('../utils/imageUtils');
-        const profileDataToSave: any = {
-          p: inscriptionType,
-          username: profileData.username || 'Anonymous',
-          title: profileData.title || 'BSV User',
-          bio: profileData.bio || 'On-chain profile',
-          timestamp: Date.now()
-        };
-        
-        if (profileImageFile) {
-          const targetSize = inscriptionType === 'profile' ? undefined : undefined; // Let imageToBase64 handle limits
-          const base64Data = await imageToBase64(profileImageFile, undefined, true, targetSize, inscriptionType);
-          profileDataToSave.avatar = `data:${profileImageFile.type};base64,${base64Data}`;
-        }
-        
-        if ((inscriptionType === 'profile2' || inscriptionType === 'profile4') && backgroundImageFile) {
-          const base64Data = await imageToBase64(backgroundImageFile, undefined, true, undefined, inscriptionType);
-          profileDataToSave.background = `data:${backgroundImageFile.type};base64,${base64Data}`;
-        }
-        
-        dataToEncrypt = profileDataToSave;
-        contentType = inscriptionType;
-      } else {
-        setEncryptedData('');
-        setEncryptedSize(0);
-        setIsEncrypting(false);
-        return;
-      }
-
-      // Encrypt the data
-      const { encryptedData, metadata } = await BlogEncryption.prepareEncryptedInscription(
-        dataToEncrypt,
-        encryptionLevel,
-        keySegment
-      );
       
-      // Create the wrapper
-      const wrapper = {
-        encrypted: true,
-        originalType: contentType,
-        data: encryptedData,
-        metadata
-      };
+      const data = await response.json();
       
-      const encryptedJson = JSON.stringify(wrapper);
-      const encryptedSizeBytes = new TextEncoder().encode(encryptedJson).length;
-      
-      setEncryptedData(encryptedJson);
-      setEncryptedSize(encryptedSizeBytes);
-      
-    } catch (error) {
-      console.error('Encryption error:', error);
-      setStatus({ 
-        type: 'error', 
-        message: 'Failed to encrypt data: ' + (error instanceof Error ? error.message : 'Unknown error')
+      setBalance({
+        confirmed: data.confirmed || 0,
+        unconfirmed: data.unconfirmed || 0,
+        loading: false,
+        error: null
       });
-      setEncryptedData('');
-      setEncryptedSize(0);
-    } finally {
-      setIsEncrypting(false);
+    } catch (error) {
+      console.error('Balance check error:', error);
+      setBalance({
+        ...balance,
+        loading: false,
+        error: 'Unable to fetch balance. Try again later.'
+      });
     }
   };
 
-  // Handle creating inscription
-  const handleCreateInscription = async () => {
-    try {
-      setLoading(true);
-      setStatus({ type: 'info', message: 'Preparing inscription...' });
-      
-      const result = await createInscription({
-        inscriptionType,
-        textData,
-        imageFile,
-        profileData,
-        profileImageFile,
-        backgroundImageFile,
-        encryptionLevel,
-        encryptedData,
-        keyData,
-        network,
-        whatsOnChainApiKey,
-        blogKeyHistory,
-        currentFeeRate,
-        lastTransactionTime
-      });
-
-      if (result.success) {
-        setLastTxid(result.txid!);
-        setLastTransactionTime(Date.now());
-        setStatus({ 
-          type: 'success', 
-          message: result.message 
-        });
-        
-        // Reset form
-        setTextData('');
-        setImageFile(null);
-        setImagePreview('');
-        setProfileData({ username: '', title: '', bio: '', avatar: '' });
-        setProfileImageFile(null);
-        setProfileImagePreview('');
-        setBackgroundImageFile(null);
-        setBackgroundImagePreview('');
-        setEncryptedData('');
-        setEncryptedSize(0);
-      } else {
-        setStatus({ 
-          type: 'error', 
-          message: result.error || 'Failed to create inscription' 
-        });
-      }
-    } catch (error) {
-      setStatus({ 
-        type: 'error', 
-        message: error instanceof Error ? error.message : 'Failed to create inscription' 
-      });
-    } finally {
-      setLoading(false);
-    }
+  // Format satoshis to BSV
+  const formatBSV = (satoshis: number): string => {
+    const bsv = satoshis / 100000000;
+    return bsv.toFixed(8).replace(/\.?0+$/, '');
   };
+
+  // Copy to clipboard function
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    // You could add a toast notification here
+  };
+
+  // Sync with EntryDialog on mount and when localStorage changes
+  useEffect(() => {
+    const loadBlogKeysFromStorage = () => {
+      // Check if there's a Full Access Bundle from EntryDialog
+      const storedBundle = localStorage.getItem('currentFullAccessBundle');
+      const storedHistory = localStorage.getItem('blogKeyHistory');
+      const newKeysAvailable = localStorage.getItem('newBlogKeysAvailable');
+      
+      // Load blog key history if available and not already loaded
+      if (storedHistory) {
+        try {
+          const parsedHistory = JSON.parse(storedHistory);
+          
+          // Check if this is newer than what we have
+          if (!keyHistory.versions || 
+              Object.keys(parsedHistory.versions).length > Object.keys(keyHistory.versions).length ||
+              parsedHistory.currentVersion > keyHistory.currentVersion ||
+              newKeysAvailable === 'true') {
+            
+            setKeyHistory(parsedHistory);
+            
+            // Load the current version
+            if (parsedHistory.currentVersion > 0) {
+              const currentBlogKey = parsedHistory.versions[parsedHistory.currentVersion];
+              if (currentBlogKey) {
+                setBlogKeyData(currentBlogKey);
+                setSelectedVersion(parsedHistory.currentVersion);
+                
+                // Update WalletStore if needed
+                if (setBlogKey) {
+                  setBlogKey(currentBlogKey);
+                }
+                
+                // Clear the flag
+                if (newKeysAvailable === 'true') {
+                  localStorage.removeItem('newBlogKeysAvailable');
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Failed to load blog key history from localStorage');
+        }
+      }
+      
+      // If there's a Full Access Bundle but no blog keys loaded yet, import it
+      if (storedBundle && !blogKeyData) {
+        try {
+          const decodedString = atob(storedBundle);
+          const bundleObject = JSON.parse(decodedString);
+          
+          if (bundleObject.tier === 5 && bundleObject.keys && bundleObject.keys.length === 5) {
+            const keys: SecureBlogKeys = {
+              tier1: bundleObject.keys[0],
+              tier2: bundleObject.keys[1],
+              tier3: bundleObject.keys[2],
+              tier4: bundleObject.keys[3],
+              tier5: bundleObject.keys[4],
+            };
+            
+            const accessBundles = {
+              tier1: [keys.tier1],
+              tier2: [keys.tier1, keys.tier2],
+              tier3: [keys.tier1, keys.tier2, keys.tier3],
+              tier4: [keys.tier1, keys.tier2, keys.tier3, keys.tier4],
+              tier5: [keys.tier1, keys.tier2, keys.tier3, keys.tier4, keys.tier5],
+            };
+            
+            const newBlogKeyData: BlogKeyData = {
+              keys,
+              accessBundles,
+              version: bundleObject.version || 'v2-secure',
+              generatedAt: bundleObject.createdAt || Date.now(),
+              label: 'Synced from EntryDialog'
+            };
+            
+            setBlogKeyData(newBlogKeyData);
+            setBlogKeyError('Keys synced from EntryDialog');
+          }
+        } catch (err) {
+          console.error('Failed to auto-import bundle from EntryDialog');
+        }
+      }
+    };
+    
+    // Load initially
+    loadBlogKeysFromStorage();
+    
+    // Set up an interval to check for updates
+    const intervalId = setInterval(loadBlogKeysFromStorage, 1000);
+    
+    // Also listen for storage events (for cross-tab communication)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'blogKeyHistory' || e.key === 'currentFullAccessBundle' || e.key === 'newBlogKeysAvailable') {
+        loadBlogKeysFromStorage();
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Cleanup
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [blogKeyData, keyHistory.currentVersion]);
+
+  // Update address and check balance when network changes
+  useEffect(() => {
+    if (keyData.publicKey) {
+      const address = network === 'testnet'
+        ? keyData.publicKey.toAddress('testnet').toString()
+        : keyData.publicKey.toAddress('mainnet').toString();
+      
+      setKeyData({ ...keyData, address });
+      checkBalance(address);
+    }
+  }, [network]);
 
   return (
-    <div>
-      <div className="mb-4 p-4 bg-gradient-to-r from-purple-900 to-pink-900 bg-opacity-20 rounded-lg border border-purple-700">
-        <h2 className="text-xl font-semibold text-white">Create Inscription</h2>
-        <p className="text-sm text-gray-300 mt-1">Create text, image, or profile inscriptions on BSV</p>
+    <>
+      <div className="mb-6 p-4 bg-gray-700 rounded-lg border border-gray-600">
+        <h2 className="text-xl font-semibold mb-4 text-white">Generate or Import Private Key</h2>
+        
+        <div className="mb-4 flex gap-2">
+          <button
+            onClick={generateRandomKey}
+            className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-6 rounded-lg transition-colors"
+          >
+            Generate Random Private Key
+          </button>
+          <button
+            onClick={() => {
+              const testKey = '0000000000000000000000000000000000000000000000000000000000000001';
+              setInputKey(testKey);
+              importPrivateKey();
+            }}
+            className="bg-gray-600 hover:bg-gray-500 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+            title="Use test key"
+          >
+            Test Key
+          </button>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            type="text"
+            value={inputKey}
+            onChange={(e) => setInputKey(e.target.value)}
+            placeholder="Enter private key (hex or WIF format)"
+            className="flex-1 px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-400"
+          />
+          <button
+            onClick={importPrivateKey}
+            className="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-6 rounded-lg transition-colors"
+          >
+            Import Key
+          </button>
+        </div>
+
+        {error && (
+          <p className="mt-2 text-red-400 text-sm">{error}</p>
+        )}
       </div>
 
-      <TransactionStatus 
-        status={status} 
-        lastTxid={lastTxid} 
-        network={network}
-        lastTransactionTime={lastTransactionTime}
-      />
+      {/* Secure Hierarchical Blog Key Generation Section */}
+      <div className="mb-6 p-4 bg-indigo-900 bg-opacity-30 rounded-lg border border-indigo-700">
+        <h2 className="text-xl font-semibold mb-4 text-white">Secure Hierarchical Blog Encryption Keys</h2>
+        
+        <div className="mb-4 p-3 bg-indigo-800 bg-opacity-30 rounded-lg">
+          <p className="text-sm text-indigo-300">
+            <span className="font-semibold">🔐 Enhanced Security Model:</span> Each tier uses independent cryptographic keys. 
+            Higher tiers receive all keys from their level and below, enabling decryption of lower-tier content without vulnerability to privilege escalation.
+          </p>
+        </div>
 
-      <div className="p-4 bg-gray-700 rounded-lg border border-gray-600">
-        <div className="space-y-4">
-          <InscriptionTypeSelector 
-            inscriptionType={inscriptionType}
-            setInscriptionType={setInscriptionType}
-          />
-
-          {/* Show encryption options for all types except largeProfile, largeProfile2, and encryptedProperty */}
-          {inscriptionType !== 'largeProfile' && inscriptionType !== 'largeProfile2' && inscriptionType !== 'encryptedProperty' && (
-            <EncryptionOptions
-              encryptionLevel={encryptionLevel}
-              setEncryptionLevel={setEncryptionLevel}
-              showEncryptionOptions={showEncryptionOptions}
-              setShowEncryptionOptions={setShowEncryptionOptions}
-              blogKeyHistory={blogKeyHistory}
+        {/* Import Full Access Bundle Section - NEW */}
+        <div className="mb-4 p-4 bg-emerald-900 bg-opacity-30 rounded-lg border border-emerald-600">
+          <h3 className="text-sm font-semibold text-emerald-300 mb-3">Import Full Access Bundle</h3>
+          <div className="space-y-2">
+            <input
+              type="text"
+              value={importBundleLabel}
+              onChange={(e) => setImportBundleLabel(e.target.value)}
+              placeholder="Optional: Label for imported bundle (e.g., 'Main Blog Keys')"
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 text-sm"
             />
-          )}
-
-          {/* Original Data Input Section */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium text-white">
-              {inscriptionType === 'encryptedProperty' ? 'Property Data' : 'Original Data'}
-            </h3>
-            
-            {inscriptionType === 'text' && (
-              <CreateTextInscription
-                textData={textData}
-                setTextData={setTextData}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={fullAccessBundleInput}
+                onChange={(e) => setFullAccessBundleInput(e.target.value)}
+                placeholder="Paste your Full Access Bundle (Tier 5) key here"
+                className="flex-1 px-4 py-2 bg-gray-800 border border-emerald-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-white placeholder-gray-400"
               />
-            )}
-
-            {inscriptionType === 'image' && (
-              <CreateImageInscription
-                imageFile={imageFile}
-                setImageFile={setImageFile}
-                imagePreview={imagePreview}
-                setImagePreview={setImagePreview}
-                setStatus={setStatus}
-                currentFeeRate={currentFeeRate}
-                encryptionLevel={encryptionLevel}
-              />
-            )}
-
-            {inscriptionType === 'profile' && (
-              <CreateProfileInscription
-                profileData={profileData}
-                setProfileData={setProfileData}
-                profileImageFile={profileImageFile}
-                setProfileImageFile={setProfileImageFile}
-                profileImagePreview={profileImagePreview}
-                setProfileImagePreview={setProfileImagePreview}
-                setStatus={setStatus}
-              />
-            )}
-
-            {inscriptionType === 'profile2' && (
-              <CreateProfile2Inscription
-                profileData={profileData}
-                setProfileData={setProfileData}
-                profileImageFile={profileImageFile}
-                setProfileImageFile={setProfileImageFile}
-                profileImagePreview={profileImagePreview}
-                setProfileImagePreview={setProfileImagePreview}
-                backgroundImageFile={backgroundImageFile}
-                setBackgroundImageFile={setBackgroundImageFile}
-                backgroundImagePreview={backgroundImagePreview}
-                setBackgroundImagePreview={setBackgroundImagePreview}
-                setStatus={setStatus}
-              />
-            )}
-
-            {inscriptionType === 'largeProfile' && (
-              <CreateLargeProfileInscription
-                keyData={keyData}
-                network={network}
-                whatsOnChainApiKey={whatsOnChainApiKey}
-                currentFeeRate={currentFeeRate}
-                balance={balance}
-                lastTransactionTime={lastTransactionTime}
-                setStatus={setStatus}
-                setLastTxid={setLastTxid}
-                setLastTransactionTime={setLastTransactionTime}
-              />
-            )}
-
-            {inscriptionType === 'largeProfile2' && (
-              <CreateLargeProfileInscription1
-                keyData={keyData}
-                network={network}
-                whatsOnChainApiKey={whatsOnChainApiKey}
-                currentFeeRate={currentFeeRate}
-                balance={balance}
-                lastTransactionTime={lastTransactionTime}
-                setStatus={setStatus}
-                setLastTxid={setLastTxid}
-                setLastTransactionTime={setLastTransactionTime}
-              />
-            )}
-
-            {inscriptionType === 'encryptedProperty' && (
-              <CreateEncryptedPropertyInscription
-                keyData={keyData}
-                network={network}
-                whatsOnChainApiKey={whatsOnChainApiKey}
-                currentFeeRate={currentFeeRate}
-                balance={balance}
-                lastTransactionTime={lastTransactionTime}
-                setStatus={setStatus}
-                setLastTxid={setLastTxid}
-                setLastTransactionTime={setLastTransactionTime}
-                blogKeyHistory={blogKeyHistory}
-                getKeySegmentForLevel={getKeySegmentForLevel}
-              />
-            )}
-
-            {inscriptionType !== 'largeProfile' && inscriptionType !== 'largeProfile2' && inscriptionType !== 'encryptedProperty' && (
-              <>
-                <WalletInfo 
-                  keyData={keyData}
-                  balance={balance}
-                  blogKeyHistory={blogKeyHistory}
-                />
-
-                {/* Create Button (shows for both encrypted and non-encrypted) */}
-                <button
-                  onClick={handleCreateInscription}
-                  disabled={loading || !keyData.privateKey || balance.confirmed < 500 || 
-                    (inscriptionType === 'image' && !imageFile) ||
-                    ((inscriptionType === 'profile2' || inscriptionType === 'profile4') && !profileImageFile && !backgroundImageFile) ||
-                    (Date.now() - lastTransactionTime < 5000) ||
-                    (encryptionLevel > 0 && (!blogKeyHistory.current || isEncrypting || !encryptedData))}
-                  className="w-full py-3 px-6 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {(() => {
-                    if (loading) {
-                      return encryptionLevel > 0 ? 'Creating Encrypted Inscription...' : 'Creating Inscription...';
-                    }
-                    if (isEncrypting) {
-                      return 'Encrypting...';
-                    }
-                    if (Date.now() - lastTransactionTime < 5000) {
-                      return `Wait ${Math.ceil((5000 - (Date.now() - lastTransactionTime)) / 1000)}s...`;
-                    }
-                    if (encryptionLevel > 0) {
-                      return `Create Encrypted ${inscriptionType.charAt(0).toUpperCase() + inscriptionType.slice(1)} Ordinal`;
-                    }
-                    return `Create ${inscriptionType.charAt(0).toUpperCase() + inscriptionType.slice(1)} Ordinal`;
-                  })()}
-                </button>
-              </>
-            )}
-          </div>
-
-          {/* Encrypted Data Display - Now at the bottom */}
-          <div className="space-y-4 mt-6">
-            {inscriptionType === 'largeProfile' || inscriptionType === 'largeProfile2' || inscriptionType === 'encryptedProperty' ? (
-              <>
-                <h3 className="text-lg font-medium text-white">
-                  {inscriptionType === 'encryptedProperty' ? 'Encrypted BCAT Property' : inscriptionType === 'largeProfile2' ? 'BCAT Manager Info' : 'BCAT Protocol Info'}
-                </h3>
-                <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg">
-                  <h4 className="text-sm font-medium text-purple-400 mb-2">
-                    {inscriptionType === 'encryptedProperty' 
-                      ? 'Encrypted Property Features'
-                      : inscriptionType === 'largeProfile2' 
-                      ? 'BCAT Manager Features' 
-                      : 'How BCAT Works'}
-                  </h4>
-                  <p className="text-xs text-gray-300 mb-3">
-                    {inscriptionType === 'encryptedProperty'
-                      ? 'Store large property data on-chain with encryption using BCAT protocol. Perfect for real estate listings, property documents, and confidential property information.'
-                      : inscriptionType === 'largeProfile2' 
-                      ? 'Advanced BCAT management with enhanced features for large file handling.'
-                      : 'BCAT (Bitcoin Concatenation) protocol allows storing large files on-chain by splitting them into multiple transactions.'}
-                  </p>
-                  <div className="space-y-2">
-                    <div className="flex items-start gap-2">
-                      <span className="text-purple-400">1.</span>
-                      <p className="text-xs text-gray-300">
-                        {inscriptionType === 'encryptedProperty' 
-                          ? 'Property data encrypted with selected access level'
-                          : 'File is split into 9MB chunks'}
-                      </p>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="text-purple-400">2.</span>
-                      <p className="text-xs text-gray-300">
-                        {inscriptionType === 'encryptedProperty'
-                          ? 'Encrypted chunks stored in separate transactions'
-                          : 'Each chunk stored in separate TX'}
-                      </p>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="text-purple-400">3.</span>
-                      <p className="text-xs text-gray-300">
-                        {inscriptionType === 'encryptedProperty'
-                          ? 'Main TX contains metadata + encrypted references'
-                          : 'Main TX contains thumbnail + references'}
-                      </p>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="text-purple-400">4.</span>
-                      <p className="text-xs text-gray-300">
-                        {inscriptionType === 'encryptedProperty'
-                          ? 'Only key holders can decrypt and view property data'
-                          : 'Files reassembled using TX IDs'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-3 p-2 bg-purple-900 bg-opacity-30 rounded">
-                    <p className="text-xs text-purple-300">
-                      {inscriptionType === 'encryptedProperty'
-                        ? '🏠🔒 Secure property data storage with BCAT + Encryption'
-                        : inscriptionType === 'largeProfile2'
-                        ? '🚀 Enhanced BCAT management with advanced features'
-                        : '💡 Perfect for videos, large images, archives, and any file over 10MB'}
-                    </p>
-                  </div>
-                </div>
-                {inscriptionType !== 'encryptedProperty' && (
-                  <WalletInfo 
-                    keyData={keyData}
-                    balance={balance}
-                    blogKeyHistory={blogKeyHistory}
-                  />
-                )}
-              </>
-            ) : (
-              <>
-                <h3 className="text-lg font-medium text-white">
-                  {encryptionLevel > 0 ? 'Encrypted Data' : 'Preview'}
-                </h3>
-                
-                {/* Encrypted Data Display */}
-                {encryptionLevel > 0 ? (
-                  <div className="h-full">
-                    {isEncrypting ? (
-                      <div className="flex items-center justify-center h-32">
-                        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
-                        <span className="ml-2 text-gray-300">Encrypting...</span>
-                      </div>
-                    ) : encryptedData ? (
-                      <div className="space-y-4">
-                        <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-medium text-green-400">Encrypted Data</span>
-                            <span className={`text-xs px-2 py-1 rounded bg-${getEncryptionLevelColor(encryptionLevel)}-600 text-white`}
-                              style={{
-                                backgroundColor: {
-                                  0: '#6B7280',
-                                  1: '#F59E0B',
-                                  2: '#EAB308',
-                                  3: '#6366F1',
-                                  4: '#A855F7',
-                                  5: '#EF4444'
-                                }[encryptionLevel]
-                              }}
-                            >
-                              Level {encryptionLevel}
-                            </span>
-                          </div>
-                          <pre className="text-xs font-mono text-green-400 break-all max-h-64 overflow-y-auto">
-                            {encryptedData.substring(0, 500)}
-                            {encryptedData.length > 500 && '...'}
-                          </pre>
-                        </div>
-                        
-                        <div className="p-3 bg-gray-800 rounded-lg space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-400">Encrypted Size:</span>
-                            <span className="text-gray-300">
-                              {(encryptedSize / 1024).toFixed(2)} KB
-                              {encryptedSize > 1024 * 1024 && ` (${(encryptedSize / 1024 / 1024).toFixed(2)} MB)`}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-400">Est. Transaction Size:</span>
-                            <span className="text-gray-300">
-                              {(() => {
-                                const { calculateTransactionFee } = require('../utils/feeCalculator');
-                                const { estimatedSize } = calculateTransactionFee(1, 2, encryptedSize, currentFeeRate);
-                                return `${(estimatedSize / 1024 / 1024).toFixed(2)} MB / 5.0 MB`;
-                              })()}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-400">Estimated Fee:</span>
-                            <span className="text-gray-300">
-                              {(() => {
-                                const { calculateTransactionFee } = require('../utils/feeCalculator');
-                                const { fee } = calculateTransactionFee(1, 2, encryptedSize, currentFeeRate);
-                                return `${fee.toLocaleString()} sats`;
-                              })()}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-400">Access Level:</span>
-                            <span className="text-gray-300">{getEncryptionLevelLabel(encryptionLevel)}</span>
-                          </div>
-                        </div>
-                        
-                        <div className="p-3 bg-indigo-900 bg-opacity-30 rounded-lg border border-indigo-700">
-                          <p className="text-xs text-indigo-300">
-                            🔒 This data will be encrypted on-chain. Only holders of your blog key with level {encryptionLevel} access or higher can decrypt it.
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center h-32 text-gray-500">
-                        <p className="text-sm">Enter data to see encrypted preview</p>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  // Non-encrypted preview
-                  <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg">
-                    <p className="text-sm text-gray-400 mb-2">Data Preview (Unencrypted)</p>
-                    {inscriptionType === 'text' && textData && (
-                      <pre className="text-xs text-gray-300 whitespace-pre-wrap">{textData}</pre>
-                    )}
-                    {inscriptionType === 'image' && imagePreview && (
-                      <img src={imagePreview} alt="Preview" className="max-h-32 mx-auto rounded" />
-                    )}
-                    {(inscriptionType === 'profile' || inscriptionType === 'profile2' || inscriptionType === 'profile4') && (
-                      <div className="text-sm text-gray-300 space-y-1">
-                        <p><span className="text-gray-400">Username:</span> {profileData.username || 'Not set'}</p>
-                        <p><span className="text-gray-400">Title:</span> {profileData.title || 'Not set'}</p>
-                        <p><span className="text-gray-400">Bio:</span> {profileData.bio || 'Not set'}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
+              <button
+                onClick={importFullAccessBundle}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-lg transition-colors"
+              >
+                Import Bundle
+              </button>
+            </div>
+            <p className="text-xs text-gray-400">
+              Import a Full Access Bundle to populate all tier keys. This will create a new version in your key history.
+            </p>
           </div>
         </div>
+
+        {/* Key History Upload Area */}
+        <div
+          className={`mb-4 p-6 border-2 border-dashed rounded-lg transition-colors ${
+            isDragging
+              ? 'border-indigo-400 bg-indigo-900 bg-opacity-20'
+              : 'border-gray-600 bg-gray-800 bg-opacity-30'
+          }`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleFileUpload(file);
+            }}
+            className="hidden"
+          />
+          <div className="text-center">
+            <svg
+              className="mx-auto h-12 w-12 text-gray-400 mb-3"
+              stroke="currentColor"
+              fill="none"
+              viewBox="0 0 48 48"
+              aria-hidden="true"
+            >
+              <path
+                d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <p className="text-sm text-gray-300 mb-2">
+              {isDragging ? 'Drop your key history file here' : 'Drag and drop your key history JSON file here'}
+            </p>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="text-sm text-indigo-400 hover:text-indigo-300 underline"
+            >
+              Or click to browse
+            </button>
+          </div>
+        </div>
+
+        {/* Key History Management */}
+        {Object.keys(keyHistory.versions).length > 0 && (
+          <div className="mb-4 p-3 bg-gray-800 rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-gray-300">Key Version History</h3>
+              <button
+                onClick={downloadKeyHistory}
+                className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors"
+              >
+                📥 Download All Versions
+              </button>
+            </div>
+            <div className="flex gap-2 items-center">
+              <select
+                value={selectedVersion}
+                onChange={(e) => loadVersion(Number(e.target.value))}
+                className="flex-1 px-3 py-1 bg-gray-700 border border-gray-600 rounded text-white text-sm"
+              >
+                {Object.entries(keyHistory.versions)
+                  .sort(([a], [b]) => Number(b) - Number(a))
+                  .map(([version, data]) => (
+                    <option key={version} value={version}>
+                      {data.label || `Version ${version}`} - {new Date(data.generatedAt).toLocaleString()}
+                    </option>
+                  ))}
+              </select>
+              <span className="text-xs text-gray-400">
+                Total: {keyHistory.metadata.totalVersions} versions
+              </span>
+            </div>
+          </div>
+        )}
+        
+        <div className="mb-4 space-y-2">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={versionLabel}
+              onChange={(e) => setVersionLabel(e.target.value)}
+              placeholder="Optional: Label for this version (e.g., 'Production Keys')"
+              className="flex-1 px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 text-sm"
+            />
+            <button
+              onClick={generateHierarchicalBlogKeys}
+              className="bg-indigo-500 hover:bg-indigo-600 text-white font-medium py-2 px-6 rounded-lg transition-colors"
+            >
+              Generate New Version
+            </button>
+          </div>
+          
+          {/* Regenerate Single Tier Section */}
+          {blogKeyData && (
+            <div className="flex gap-2 p-3 bg-purple-900 bg-opacity-20 rounded-lg border border-purple-600">
+              <select
+                value={selectedImportTier}
+                onChange={(e) => setSelectedImportTier(Number(e.target.value))}
+                className="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white"
+              >
+                <option value={1}>Tier 1 (128-bit)</option>
+                <option value={2}>Tier 2 (128-bit)</option>
+                <option value={3}>Tier 3 (128-bit)</option>
+                <option value={4}>Tier 4 (192-bit)</option>
+                <option value={5}>Tier 5 (256-bit)</option>
+              </select>
+              <button
+                onClick={() => {
+                  // Generate new random key for selected tier
+                  const bitSizes: { [key: number]: number } = {
+                    1: 128,
+                    2: 128,
+                    3: 128,
+                    4: 192,
+                    5: 256
+                  };
+                  const newKey = generateSecureRandomKey(bitSizes[selectedImportTier]);
+                  replaceSpecificTier(selectedImportTier, newKey);
+                }}
+                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+              >
+                🎲 Regenerate {`Tier ${selectedImportTier}`} with Random Key
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-2 mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <input
+              type="checkbox"
+              id="replaceMode"
+              checked={replaceMode}
+              onChange={(e) => setReplaceMode(e.target.checked)}
+              disabled={!blogKeyData}
+              className="rounded"
+            />
+            <label htmlFor="replaceMode" className="text-sm text-gray-300">
+              Replace single tier only (preserve other keys)
+            </label>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={importBlogKey}
+              onChange={(e) => setImportBlogKey(e.target.value)}
+              placeholder={replaceMode ? "Enter hex key to replace selected tier" : "Import access bundle (base64) or raw hex key"}
+              className="flex-1 px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white placeholder-gray-400"
+            />
+            <select
+              value={selectedImportTier}
+              onChange={(e) => setSelectedImportTier(Number(e.target.value))}
+              className="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white"
+              title="Select tier for raw hex import or replacement"
+            >
+              <option value={1}>Tier 1</option>
+              <option value={2}>Tier 2</option>
+              <option value={3}>Tier 3</option>
+              <option value={4}>Tier 4</option>
+              <option value={5}>Tier 5</option>
+            </select>
+            <button
+              onClick={importAccessBundle}
+              className="bg-indigo-500 hover:bg-indigo-600 text-white font-medium py-2 px-6 rounded-lg transition-colors"
+            >
+              {replaceMode ? 'Replace' : 'Import'}
+            </button>
+          </div>
+          <p className="text-xs text-gray-400">
+            {replaceMode 
+              ? 'Enter a hex key and select which tier to replace while keeping other tiers intact'
+              : 'Import an access bundle shared with you, or a raw hex key for a specific tier'}
+          </p>
+        </div>
+
+        {blogKeyError && (
+          <p className="mt-2 text-sm text-yellow-400">{blogKeyError}</p>
+        )}
+
+        {blogKeyData && (
+          <div className="mt-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-medium text-white">
+                {blogKeyData.label || `Version ${selectedVersion}`} Keys
+              </h3>
+              <button
+                onClick={() => setShowBlogKey(!showBlogKey)}
+                className="text-sm text-indigo-400 hover:text-indigo-300 font-medium"
+              >
+                {showBlogKey ? 'Hide' : 'Show'} Keys & Access Bundles
+              </button>
+            </div>
+
+            {showBlogKey && (
+              <div className="p-4 bg-gray-800 rounded-lg space-y-4">
+                {/* Tier 5 - Full Access */}
+                {blogKeyData.keys.tier5 && (
+                  <div className="p-3 bg-red-900 bg-opacity-20 rounded-lg border border-red-700">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium text-red-300">
+                        Tier 5 - Complete Access (All Levels)
+                      </label>
+                      <span className="text-xs text-gray-400">256-bit key</span>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 p-2 bg-gray-900 rounded border border-red-600 text-xs break-all text-red-300 font-mono">
+                          {blogKeyData.keys.tier5}
+                        </code>
+                        <button
+                          onClick={() => copyToClipboard(blogKeyData.keys.tier5, 'Tier 5 Key')}
+                          className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm"
+                          title="Copy Tier 5 key only"
+                        >
+                          📋
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => copyToClipboard(createAccessBundle(5), 'Tier 5 Access Bundle')}
+                          className="flex-1 px-3 py-1 bg-red-800 hover:bg-red-700 text-white rounded text-sm"
+                        >
+                          📦 Copy Full Access Bundle (Decrypts Levels 1-5)
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-400">
+                        Access: Can decrypt all content (Levels 1, 2, 3, 4, and 5)
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tier 4 */}
+                {blogKeyData.keys.tier4 && (
+                  <div className="p-3 bg-purple-900 bg-opacity-20 rounded-lg border border-purple-700">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium text-purple-300">
+                        Tier 4 - Closed Group Access
+                      </label>
+                      <span className="text-xs text-gray-400">192-bit key</span>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 p-2 bg-gray-900 rounded border border-purple-600 text-xs break-all text-purple-300 font-mono">
+                          {blogKeyData.keys.tier4}
+                        </code>
+                        <button
+                          onClick={() => copyToClipboard(blogKeyData.keys.tier4, 'Tier 4 Key')}
+                          className="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm"
+                          title="Copy Tier 4 key only"
+                        >
+                          📋
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => copyToClipboard(createAccessBundle(4), 'Tier 4 Access Bundle')}
+                          className="flex-1 px-3 py-1 bg-purple-800 hover:bg-purple-700 text-white rounded text-sm"
+                        >
+                          📦 Copy Tier 4 Access Bundle (Decrypts Levels 1-4)
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-400">
+                        Access: Can decrypt Levels 1, 2, 3, and 4 content
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tier 3 */}
+                {blogKeyData.keys.tier3 && (
+                  <div className="p-3 bg-indigo-900 bg-opacity-20 rounded-lg border border-indigo-700">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium text-indigo-300">
+                        Tier 3 - Inner Circle Access
+                      </label>
+                      <span className="text-xs text-gray-400">128-bit key</span>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 p-2 bg-gray-900 rounded border border-indigo-600 text-xs break-all text-indigo-300 font-mono">
+                          {blogKeyData.keys.tier3}
+                        </code>
+                        <button
+                          onClick={() => copyToClipboard(blogKeyData.keys.tier3, 'Tier 3 Key')}
+                          className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-sm"
+                          title="Copy Tier 3 key only"
+                        >
+                          📋
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => copyToClipboard(createAccessBundle(3), 'Tier 3 Access Bundle')}
+                          className="flex-1 px-3 py-1 bg-indigo-800 hover:bg-indigo-700 text-white rounded text-sm"
+                        >
+                          📦 Copy Tier 3 Access Bundle (Decrypts Levels 1-3)
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-400">
+                        Access: Can decrypt Levels 1, 2, and 3 content
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tier 2 */}
+                {blogKeyData.keys.tier2 && (
+                  <div className="p-3 bg-yellow-900 bg-opacity-20 rounded-lg border border-yellow-700">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium text-yellow-300">
+                        Tier 2 - Close Friends Access
+                      </label>
+                      <span className="text-xs text-gray-400">128-bit key</span>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 p-2 bg-gray-900 rounded border border-yellow-600 text-xs break-all text-yellow-300 font-mono">
+                          {blogKeyData.keys.tier2}
+                        </code>
+                        <button
+                          onClick={() => copyToClipboard(blogKeyData.keys.tier2, 'Tier 2 Key')}
+                          className="px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm"
+                          title="Copy Tier 2 key only"
+                        >
+                          📋
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => copyToClipboard(createAccessBundle(2), 'Tier 2 Access Bundle')}
+                          className="flex-1 px-3 py-1 bg-yellow-800 hover:bg-yellow-700 text-white rounded text-sm"
+                        >
+                          📦 Copy Tier 2 Access Bundle (Decrypts Levels 1-2)
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-400">
+                        Access: Can decrypt Levels 1 and 2 content
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tier 1 */}
+                {blogKeyData.keys.tier1 && (
+                  <div className="p-3 bg-orange-900 bg-opacity-20 rounded-lg border border-orange-700">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium text-orange-300">
+                        Tier 1 - Friends Access
+                      </label>
+                      <span className="text-xs text-gray-400">128-bit key</span>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 p-2 bg-gray-900 rounded border border-orange-600 text-xs break-all text-orange-300 font-mono">
+                          {blogKeyData.keys.tier1}
+                        </code>
+                        <button
+                          onClick={() => copyToClipboard(blogKeyData.keys.tier1, 'Tier 1 Key')}
+                          className="px-2 py-1 bg-orange-600 hover:bg-orange-700 text-white rounded text-sm"
+                          title="Copy Tier 1 key only"
+                        >
+                          📋
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => copyToClipboard(createAccessBundle(1), 'Tier 1 Access Bundle')}
+                          className="flex-1 px-3 py-1 bg-orange-800 hover:bg-orange-700 text-white rounded text-sm"
+                        >
+                          📦 Copy Tier 1 Access Bundle (Decrypts Level 1 only)
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-400">
+                        Access: Can decrypt Level 1 content only
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-4 p-3 bg-green-800 bg-opacity-30 rounded-lg">
+                  <h4 className="text-sm font-semibold text-green-300 mb-2">🔐 Security Features:</h4>
+                  <ul className="text-xs text-gray-300 space-y-1">
+                    <li>✅ <span className="text-green-400">Independent keys</span> - Each tier has its own cryptographic key</li>
+                    <li>✅ <span className="text-green-400">No privilege escalation</span> - Lower tiers cannot derive higher tier keys</li>
+                    <li>✅ <span className="text-green-400">Hierarchical access</span> - Higher tiers can decrypt all lower tier content</li>
+                    <li>✅ <span className="text-green-400">Version history</span> - Track all key generations and modifications</li>
+                    <li>✅ <span className="text-green-400">Backup & restore</span> - Download and upload complete key history</li>
+                    <li>✅ <span className="text-green-400">Selective replacement</span> - Change individual tier keys without affecting others</li>
+                    <li>✅ <span className="text-green-400">Full bundle import</span> - Import complete tier 5 bundles to populate all keys</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            <div className="text-sm text-gray-400">
+              <p>Current Version: <span className="text-gray-300">{blogKeyData.label || `Version ${selectedVersion}`}</span></p>
+              <p>Type: <span className="text-gray-300">{blogKeyData.version}</span></p>
+              <p>Generated: <span className="text-gray-300">{new Date(blogKeyData.generatedAt).toLocaleString()}</span></p>
+              <p>Highest Available Tier: <span className="text-gray-300">Level {getHighestAvailableTier()}</span></p>
+            </div>
+          </div>
+        )}
       </div>
-    </div>
-  );
-};
+
+      {keyData.privateKey && (
+        <>
+          <div className="mb-6 p-4 bg-blue-900 bg-opacity-30 rounded-lg border border-blue-700">
+            <h2 className="text-xl font-semibold mb-2 text-white">BSV Address (for Regular Transactions & 1Sat Ordinals)</h2>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 p-3 bg-gray-800 rounded border border-blue-600 text-sm break-all text-blue-300">
+                {keyData.address}
+              </code>
+              <button
+                onClick={() => copyToClipboard(keyData.address, 'Address')}
+                className="px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
+                title="Copy address"
+              >
+                📋
+              </button>
+            </div>
+            
+            <div className="mt-3 p-3 bg-gray-800 rounded border border-gray-600">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-300">Balance:</span>
+                <div className="flex items-center gap-2">
